@@ -2,33 +2,33 @@ use std::collections::HashMap;
 use std::process::Command;
 use std::process::Stdio;
 
-use crate::model::TmuxSession;
+use crate::model::TmuxSessions;
 use crate::model::TmuxWindow;
-use crate::utils::is_numeric;
+use crate::utils;
 
-pub(crate) fn get_tmux_sessions() -> HashMap<String, TmuxSession> {
+pub(crate) fn list_sessions() -> TmuxSessions {
     let output = Command::new("tmux")
         .arg("list-sessions")
         .output()
         .expect("Failed to list tmux sessions.");
 
     let sessions_output = String::from_utf8_lossy(&output.stdout);
-    let mut sessions: HashMap<String, TmuxSession> = HashMap::new();
+    let mut sessions = HashMap::new();
 
     for session in sessions_output.lines() {
         if let Some((name, _)) = session
             .split_once(':')
-            .filter(|(name, _)| !is_numeric(name))
+            .filter(|(name, _)| !utils::is_numeric(name))
         {
-            let windows = get_tmux_windows(name);
-            sessions.insert(name.to_string(), TmuxSession { windows });
+            let windows = list_windows(name);
+            sessions.insert(name.to_string(), windows);
         }
     }
 
     sessions
 }
 
-pub(crate) fn get_tmux_windows(session_name: &str) -> Vec<TmuxWindow> {
+pub(crate) fn list_windows(session_name: &str) -> Vec<TmuxWindow> {
     let output = Command::new("tmux")
         .arg("list-windows")
         .arg("-t")
