@@ -31,29 +31,12 @@ impl<'a, 'b, 'c, C: Config, T: Tmux, R: RecentSessionFile> Recent
             .recent_session_file
             .read_session_names_from_file(filename);
 
-        let names: Vec<String> = recent_session_names
+        recent_session_names
             .iter()
             .filter(|name| session_names.contains(name))
+            .skip_while(|&name| name != session_name)
+            .nth(1)
             .cloned()
-            .collect();
-
-        if !names.iter().any(|name| name == session_name) {
-            return None;
-        }
-
-        let mut current_name = None;
-
-        for name in names.iter() {
-            if current_name.is_some() {
-                return Some(name.to_string());
-            }
-
-            if name == session_name {
-                current_name = Some(name.to_string());
-            }
-        }
-
-        None
     }
 
     fn previous(&self, session_name: &str) -> Option<String> {
@@ -63,24 +46,17 @@ impl<'a, 'b, 'c, C: Config, T: Tmux, R: RecentSessionFile> Recent
             .recent_session_file
             .read_session_names_from_file(filename);
 
-        let names: Vec<String> = recent_session_names
-            .iter()
-            .filter(|name| session_names.contains(name))
-            .cloned()
-            .collect();
-
-        if !names.iter().any(|name| name == session_name) {
-            return None;
-        }
-
         let mut previous_name = None;
 
-        for name in names.iter() {
+        for name in recent_session_names
+            .iter()
+            .filter(|name| session_names.contains(name))
+        {
             if name == session_name {
                 return previous_name.clone();
             }
 
-            previous_name = Some(name.to_string());
+            previous_name = Some(name.clone());
         }
 
         None
