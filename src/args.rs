@@ -21,5 +21,8 @@ pub(crate) enum Action {
         /// Session name to get next recent session from
         session_name: String,
     },
-    PreviousRecent,
+    PreviousRecent {
+        /// Session name to get previous recent session from
+        session_name: String,
+    },
 }

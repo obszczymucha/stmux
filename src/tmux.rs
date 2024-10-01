@@ -2,11 +2,14 @@ use std::collections::HashMap;
 use std::process::Command;
 use std::process::Stdio;
 
+use mockall::automock;
+
 use crate::model::SessionName;
 use crate::model::TmuxSessions;
 use crate::model::TmuxWindow;
 use crate::utils;
 
+#[automock]
 pub(crate) trait Tmux {
     fn list_session_names(&self) -> Vec<SessionName>;
     fn list_sessions(&self) -> TmuxSessions;

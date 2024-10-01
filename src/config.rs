@@ -1,10 +1,12 @@
 use dirs_next::home_dir;
+use mockall::automock;
 use std::fs;
 
 const CONFIG_LOCATION: &str = ".config/stmux";
 const DEFAULT_FILENAME: &str = "sessions.toml";
 const RECENT_SESSIONS_FILENAME: &str = ".tmux_recent";
 
+#[automock]
 pub(crate) trait Config {
     fn create_dir(&self);
     fn default_sessions_filename(&self) -> String;

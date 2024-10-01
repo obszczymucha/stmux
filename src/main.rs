@@ -36,8 +36,8 @@ fn main() {
         args::Action::NextRecent { session_name } => {
             recent.next(&session_name);
         }
-        args::Action::PreviousRecent => {
-            recent.previous();
+        args::Action::PreviousRecent { session_name } => {
+            recent.previous(&session_name);
         }
     }
 }

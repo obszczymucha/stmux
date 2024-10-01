@@ -2,7 +2,7 @@ use crate::{config::Config, recent_session_file::RecentSessionFile, tmux::Tmux};
 
 pub(crate) trait Recent {
     fn next(&self, session_name: &str) -> Option<String>;
-    fn previous(&self);
+    fn previous(&self, session_name: &str) -> Option<String>;
 }
 
 pub(crate) struct RecentImpl<'a, 'b, 'c, C: Config, T: Tmux, R: RecentSessionFile> {
@@ -41,28 +41,230 @@ impl<'a, 'b, 'c, C: Config, T: Tmux, R: RecentSessionFile> Recent
             return None;
         }
 
-        names
-            .iter()
-            .cycle()
-            .skip_while(|name| name != &session_name)
-            .nth(1)
-            .cloned()
+        let mut current_name = None;
+
+        for name in names.iter() {
+            if current_name.is_some() {
+                return Some(name.to_string());
+            }
+
+            if name == session_name {
+                current_name = Some(name.to_string());
+            }
+        }
+
+        None
     }
 
-    fn previous(&self) {
-        eprintln!("Not implemented yet: recent::previous()");
+    fn previous(&self, session_name: &str) -> Option<String> {
+        let session_names = self.tmux.list_session_names();
+        let filename = &self.config.recent_sessions_filename();
+        let recent_session_names: &Vec<String> = &self
+            .recent_session_file
+            .read_session_names_from_file(filename);
+
+        let names: Vec<String> = recent_session_names
+            .iter()
+            .filter(|name| session_names.contains(name))
+            .cloned()
+            .collect();
+
+        if !names.iter().any(|name| name == session_name) {
+            return None;
+        }
+
+        let mut previous_name = None;
+
+        for name in names.iter() {
+            if name == session_name {
+                return previous_name.clone();
+            }
+
+            previous_name = Some(name.to_string());
+        }
+
+        None
     }
 }
 
-// mod tests {
-//     use super::*;
-//     #[test]
-//     fn test_next() {
-//         let session_name = "session1";
-//         let session_names = vec!["session1", "session2", "session3"];
-//         let recent_session_names = vec!["session2", "session1", "session3"];
-//         let expected = Some("session3".to_string());
-//         let actual = next(session_name, session_names, recent_session_names);
-//         assert_eq!(expected, actual);
-//     }
-// }
+#[cfg(test)]
+mod next_tests {
+    use super::*;
+    use crate::{config, recent_session_file, tmux};
+    use config::MockConfig;
+    use mockall::predicate::*;
+    use recent_session_file::MockRecentSessionFile;
+    use tmux::MockTmux;
+
+    #[test]
+    fn should_return_the_next_session() {
+        // Given
+        let mut tmux = MockTmux::new();
+        tmux.expect_list_session_names()
+            .returning(|| vec!["a".into(), "b".into()].clone());
+
+        let mut config = MockConfig::new();
+        config
+            .expect_recent_sessions_filename()
+            .returning(|| ".tmux_recent".into());
+
+        let mut recent_session_file = MockRecentSessionFile::new();
+        recent_session_file
+            .expect_read_session_names_from_file()
+            .with(eq(".tmux_recent"))
+            .returning(|_| vec!["a".into(), "b".into()]);
+
+        let recent = RecentImpl::new(&config, &tmux, &recent_session_file);
+
+        // When
+        let result = recent.next("a");
+
+        // Then
+        assert_eq!(result.as_deref(), Some("b"));
+    }
+
+    #[test]
+    fn should_return_the_next_available_session() {
+        // Given
+        let mut tmux = MockTmux::new();
+        tmux.expect_list_session_names()
+            .returning(|| vec!["a".into(), "c".into()].clone());
+
+        let mut config = MockConfig::new();
+        config
+            .expect_recent_sessions_filename()
+            .returning(|| ".tmux_recent".into());
+
+        let mut recent_session_file = MockRecentSessionFile::new();
+        recent_session_file
+            .expect_read_session_names_from_file()
+            .with(eq(".tmux_recent"))
+            .returning(|_| vec!["a".into(), "b".into(), "c".into()]);
+
+        let recent = RecentImpl::new(&config, &tmux, &recent_session_file);
+
+        // When
+        let result = recent.next("a");
+
+        // Then
+        assert_eq!(result.as_deref(), Some("c"));
+    }
+
+    #[test]
+    fn should_return_none_if_the_session_is_the_last_one() {
+        // Given
+        let mut tmux = MockTmux::new();
+        tmux.expect_list_session_names()
+            .returning(|| vec!["a".into(), "b".into(), "c".into()].clone());
+
+        let mut config = MockConfig::new();
+        config
+            .expect_recent_sessions_filename()
+            .returning(|| ".tmux_recent".into());
+
+        let mut recent_session_file = MockRecentSessionFile::new();
+        recent_session_file
+            .expect_read_session_names_from_file()
+            .with(eq(".tmux_recent"))
+            .returning(|_| vec!["a".into(), "b".into(), "c".into()]);
+
+        let recent = RecentImpl::new(&config, &tmux, &recent_session_file);
+
+        // When
+        let result = recent.next("c");
+
+        // Then
+        assert_eq!(result.as_deref(), None);
+    }
+}
+
+#[cfg(test)]
+mod previous_tests {
+    use super::*;
+    use crate::{config, recent_session_file, tmux};
+    use config::MockConfig;
+    use mockall::predicate::*;
+    use recent_session_file::MockRecentSessionFile;
+    use tmux::MockTmux;
+
+    #[test]
+    fn should_return_the_previous_session() {
+        // Given
+        let mut tmux = MockTmux::new();
+        tmux.expect_list_session_names()
+            .returning(|| vec!["a".into(), "b".into(), "c".into()].clone());
+
+        let mut config = MockConfig::new();
+        config
+            .expect_recent_sessions_filename()
+            .returning(|| ".tmux_recent".into());
+
+        let mut recent_session_file = MockRecentSessionFile::new();
+        recent_session_file
+            .expect_read_session_names_from_file()
+            .with(eq(".tmux_recent"))
+            .returning(|_| vec!["a".into(), "b".into(), "c".into()]);
+
+        let recent = RecentImpl::new(&config, &tmux, &recent_session_file);
+
+        // When
+        let result = recent.previous("c");
+
+        // Then
+        assert_eq!(result.as_deref(), Some("b"));
+    }
+
+    #[test]
+    fn should_return_the_previous_available_session() {
+        // Given
+        let mut tmux = MockTmux::new();
+        tmux.expect_list_session_names()
+            .returning(|| vec!["a".into(), "c".into()].clone());
+
+        let mut config = MockConfig::new();
+        config
+            .expect_recent_sessions_filename()
+            .returning(|| ".tmux_recent".into());
+
+        let mut recent_session_file = MockRecentSessionFile::new();
+        recent_session_file
+            .expect_read_session_names_from_file()
+            .with(eq(".tmux_recent"))
+            .returning(|_| vec!["a".into(), "b".into(), "c".into()]);
+
+        let recent = RecentImpl::new(&config, &tmux, &recent_session_file);
+
+        // When
+        let result = recent.previous("c");
+
+        // Then
+        assert_eq!(result.as_deref(), Some("a"));
+    }
+
+    #[test]
+    fn should_return_none_if_the_session_is_the_first_one() {
+        // Given
+        let mut tmux = MockTmux::new();
+        tmux.expect_list_session_names()
+            .returning(|| vec!["a".into(), "b".into(), "c".into()].clone());
+
+        let mut config = MockConfig::new();
+        config
+            .expect_recent_sessions_filename()
+            .returning(|| ".tmux_recent".into());
+
+        let mut recent_session_file = MockRecentSessionFile::new();
+        recent_session_file
+            .expect_read_session_names_from_file()
+            .with(eq(".tmux_recent"))
+            .returning(|_| vec!["a".into(), "b".into(), "c".into()]);
+
+        let recent = RecentImpl::new(&config, &tmux, &recent_session_file);
+
+        // When
+        let result = recent.previous("a");
+
+        // Then
+        assert_eq!(result.as_deref(), None);
+    }
+}

@@ -1,5 +1,8 @@
 use std::io::BufRead;
 
+use mockall::automock;
+
+#[automock]
 pub(crate) trait RecentSessionFile {
     fn read_session_names_from_file(&self, filename: &str) -> Vec<String>;
 }
