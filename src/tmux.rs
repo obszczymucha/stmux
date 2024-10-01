@@ -18,6 +18,8 @@ pub(crate) trait Tmux {
     fn new_window(&self, session_name: &str, tmux_window: &TmuxWindow, i: usize);
     fn has_session(&self, session_name: &str) -> bool;
     fn select_window(&self, session_name: &str, index: usize);
+    fn current_session_name(&self) -> String;
+    fn select_session(&self, session_name: &str);
 }
 
 pub(crate) struct TmuxImpl;
@@ -159,18 +161,25 @@ impl Tmux for TmuxImpl {
             .status()
             .expect("Failed to select window.");
     }
-}
 
-// pub(crate) fn get_current_session_name() -> String {
-//     Command::new("tmux")
-//         .arg("display-message")
-//         .arg("-p")
-//         .arg("#S")
-//         .output()
-//         .expect("Failed to get current session name.")
-//         .stdout
-//         .first()
-//         .map(|s| s.to_string())
-//         .unwrap_or("".to_string())
-//         .to_string()
-// }
+    fn current_session_name(&self) -> String {
+        let stdout = Command::new("tmux")
+            .arg("display-message")
+            .arg("-p")
+            .arg("#S")
+            .output()
+            .expect("Failed to get current session name.")
+            .stdout;
+
+        String::from_utf8_lossy(&stdout).trim().to_string()
+    }
+
+    fn select_session(&self, session_name: &str) {
+        Command::new("tmux")
+            .arg("switch-client")
+            .arg("-t")
+            .arg(session_name)
+            .status()
+            .expect("Failed to select session.");
+    }
+}

@@ -27,7 +27,7 @@ impl<'a, 'b, 'c, C: Config, T: Tmux, R: RecentSessionFile> Recent
     fn next(&self, session_name: &str) -> Option<String> {
         let session_names = self.tmux.list_session_names();
         let filename = &self.config.recent_sessions_filename();
-        let recent_session_names: &Vec<String> = &self
+        let recent_session_names = &self
             .recent_session_file
             .read_session_names_from_file(filename);
 
@@ -42,7 +42,7 @@ impl<'a, 'b, 'c, C: Config, T: Tmux, R: RecentSessionFile> Recent
     fn previous(&self, session_name: &str) -> Option<String> {
         let session_names = self.tmux.list_session_names();
         let filename = &self.config.recent_sessions_filename();
-        let recent_session_names: &Vec<String> = &self
+        let recent_session_names = &self
             .recent_session_file
             .read_session_names_from_file(filename);
 

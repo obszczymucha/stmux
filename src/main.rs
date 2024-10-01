@@ -10,6 +10,7 @@ use clap::Parser;
 use config::Config;
 use recent::Recent;
 use sessions::Sessions;
+use tmux::Tmux;
 
 fn main() {
     let args = args::Args::parse();
@@ -33,11 +34,15 @@ fn main() {
                 .unwrap_or(config.default_sessions_filename())
                 .as_str(),
         ),
-        args::Action::NextRecent { session_name } => {
-            recent.next(&session_name);
+        args::Action::NextRecent => {
+            if let Some(name) = recent.next(&tmux.current_session_name()) {
+                tmux.select_session(&name);
+            }
         }
-        args::Action::PreviousRecent { session_name } => {
-            recent.previous(&session_name);
+        args::Action::PreviousRecent => {
+            if let Some(name) = recent.previous(&tmux.current_session_name()) {
+                tmux.select_session(&name);
+            }
         }
     }
 }

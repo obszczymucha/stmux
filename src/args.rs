@@ -17,12 +17,6 @@ pub(crate) enum Action {
         /// Filename to restore sessions from
         filename: Option<String>,
     },
-    NextRecent {
-        /// Session name to get next recent session from
-        session_name: String,
-    },
-    PreviousRecent {
-        /// Session name to get previous recent session from
-        session_name: String,
-    },
+    NextRecent,
+    PreviousRecent,
 }
