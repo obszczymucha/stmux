@@ -4,6 +4,7 @@ vim.opt.showtabline = 0
 vim.opt.number = true
 vim.opt.numberwidth = 3
 vim.opt.fillchars = { eob = " " }
+vim.opt.termguicolors = true
 
 ---@diagnostic disable-next-line: undefined-field
 local release = vim.loop.os_uname().release
