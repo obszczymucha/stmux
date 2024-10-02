@@ -1,35 +1,29 @@
-use crate::{config::Config, recent_session_file::RecentSessionFile, tmux::Tmux};
+use crate::{session_name_file::SessionNameFile, tmux::Tmux};
 
 pub(crate) trait Recent {
     fn next(&self, session_name: &str) -> Option<String>;
     fn previous(&self, session_name: &str) -> Option<String>;
+    fn print(&self);
 }
 
-pub(crate) struct RecentImpl<'a, 'b, 'c, C: Config, T: Tmux, R: RecentSessionFile> {
-    config: &'a C,
-    tmux: &'b T,
-    recent_session_file: &'c R,
+pub(crate) struct RecentImpl<'t, 's, T: Tmux, S: SessionNameFile> {
+    tmux: &'t T,
+    recent_session_file: &'s S,
 }
 
-impl<'a, 'b, 'c, C: Config, T: Tmux, R: RecentSessionFile> RecentImpl<'a, 'b, 'c, C, T, R> {
-    pub(crate) fn new(config: &'a C, tmux: &'b T, recent_session_file: &'c R) -> Self {
+impl<'t, 's, T: Tmux, S: SessionNameFile> RecentImpl<'t, 's, T, S> {
+    pub(crate) fn new(tmux: &'t T, recent_session_file: &'s S) -> Self {
         Self {
-            config,
             tmux,
             recent_session_file,
         }
     }
 }
 
-impl<'a, 'b, 'c, C: Config, T: Tmux, R: RecentSessionFile> Recent
-    for RecentImpl<'a, 'b, 'c, C, T, R>
-{
+impl<'t, 's, T: Tmux, S: SessionNameFile> Recent for RecentImpl<'t, 's, T, S> {
     fn next(&self, session_name: &str) -> Option<String> {
         let session_names = self.tmux.list_session_names();
-        let filename = &self.config.recent_sessions_filename();
-        let recent_session_names = &self
-            .recent_session_file
-            .read_session_names_from_file(filename);
+        let recent_session_names = &self.recent_session_file.read();
 
         recent_session_names
             .iter()
@@ -41,11 +35,7 @@ impl<'a, 'b, 'c, C: Config, T: Tmux, R: RecentSessionFile> Recent
 
     fn previous(&self, session_name: &str) -> Option<String> {
         let session_names = self.tmux.list_session_names();
-        let filename = &self.config.recent_sessions_filename();
-        let recent_session_names = &self
-            .recent_session_file
-            .read_session_names_from_file(filename);
-
+        let recent_session_names = &self.recent_session_file.read();
         let mut previous_name = None;
 
         for name in recent_session_names
@@ -61,15 +51,21 @@ impl<'a, 'b, 'c, C: Config, T: Tmux, R: RecentSessionFile> Recent
 
         None
     }
+
+    fn print(&self) {
+        let recent_session_names = &self.recent_session_file.read();
+
+        for name in recent_session_names {
+            println!("{}", name.trim());
+        }
+    }
 }
 
 #[cfg(test)]
 mod next_tests {
     use super::*;
-    use crate::{config, recent_session_file, tmux};
-    use config::MockConfig;
-    use mockall::predicate::*;
-    use recent_session_file::MockRecentSessionFile;
+    use crate::{session_name_file, tmux};
+    use session_name_file::MockSessionNameFile;
     use tmux::MockTmux;
 
     #[test]
@@ -79,18 +75,12 @@ mod next_tests {
         tmux.expect_list_session_names()
             .returning(|| vec!["a".into(), "b".into()].clone());
 
-        let mut config = MockConfig::new();
-        config
-            .expect_recent_sessions_filename()
-            .returning(|| ".tmux_recent".into());
-
-        let mut recent_session_file = MockRecentSessionFile::new();
+        let mut recent_session_file = MockSessionNameFile::new();
         recent_session_file
-            .expect_read_session_names_from_file()
-            .with(eq(".tmux_recent"))
-            .returning(|_| vec!["a".into(), "b".into()]);
+            .expect_read()
+            .returning(|| vec!["a".into(), "b".into()]);
 
-        let recent = RecentImpl::new(&config, &tmux, &recent_session_file);
+        let recent = RecentImpl::new(&tmux, &recent_session_file);
 
         // When
         let result = recent.next("a");
@@ -106,18 +96,12 @@ mod next_tests {
         tmux.expect_list_session_names()
             .returning(|| vec!["a".into(), "c".into()].clone());
 
-        let mut config = MockConfig::new();
-        config
-            .expect_recent_sessions_filename()
-            .returning(|| ".tmux_recent".into());
-
-        let mut recent_session_file = MockRecentSessionFile::new();
+        let mut recent_session_file = MockSessionNameFile::new();
         recent_session_file
-            .expect_read_session_names_from_file()
-            .with(eq(".tmux_recent"))
-            .returning(|_| vec!["a".into(), "b".into(), "c".into()]);
+            .expect_read()
+            .returning(|| vec!["a".into(), "b".into(), "c".into()]);
 
-        let recent = RecentImpl::new(&config, &tmux, &recent_session_file);
+        let recent = RecentImpl::new(&tmux, &recent_session_file);
 
         // When
         let result = recent.next("a");
@@ -133,18 +117,12 @@ mod next_tests {
         tmux.expect_list_session_names()
             .returning(|| vec!["a".into(), "b".into(), "c".into()].clone());
 
-        let mut config = MockConfig::new();
-        config
-            .expect_recent_sessions_filename()
-            .returning(|| ".tmux_recent".into());
-
-        let mut recent_session_file = MockRecentSessionFile::new();
+        let mut recent_session_file = MockSessionNameFile::new();
         recent_session_file
-            .expect_read_session_names_from_file()
-            .with(eq(".tmux_recent"))
-            .returning(|_| vec!["a".into(), "b".into(), "c".into()]);
+            .expect_read()
+            .returning(|| vec!["a".into(), "b".into(), "c".into()]);
 
-        let recent = RecentImpl::new(&config, &tmux, &recent_session_file);
+        let recent = RecentImpl::new(&tmux, &recent_session_file);
 
         // When
         let result = recent.next("c");
@@ -157,10 +135,8 @@ mod next_tests {
 #[cfg(test)]
 mod previous_tests {
     use super::*;
-    use crate::{config, recent_session_file, tmux};
-    use config::MockConfig;
-    use mockall::predicate::*;
-    use recent_session_file::MockRecentSessionFile;
+    use crate::{session_name_file, tmux};
+    use session_name_file::MockSessionNameFile;
     use tmux::MockTmux;
 
     #[test]
@@ -170,18 +146,12 @@ mod previous_tests {
         tmux.expect_list_session_names()
             .returning(|| vec!["a".into(), "b".into(), "c".into()].clone());
 
-        let mut config = MockConfig::new();
-        config
-            .expect_recent_sessions_filename()
-            .returning(|| ".tmux_recent".into());
-
-        let mut recent_session_file = MockRecentSessionFile::new();
+        let mut recent_session_file = MockSessionNameFile::new();
         recent_session_file
-            .expect_read_session_names_from_file()
-            .with(eq(".tmux_recent"))
-            .returning(|_| vec!["a".into(), "b".into(), "c".into()]);
+            .expect_read()
+            .returning(|| vec!["a".into(), "b".into(), "c".into()]);
 
-        let recent = RecentImpl::new(&config, &tmux, &recent_session_file);
+        let recent = RecentImpl::new(&tmux, &recent_session_file);
 
         // When
         let result = recent.previous("c");
@@ -197,18 +167,12 @@ mod previous_tests {
         tmux.expect_list_session_names()
             .returning(|| vec!["a".into(), "c".into()].clone());
 
-        let mut config = MockConfig::new();
-        config
-            .expect_recent_sessions_filename()
-            .returning(|| ".tmux_recent".into());
-
-        let mut recent_session_file = MockRecentSessionFile::new();
+        let mut recent_session_file = MockSessionNameFile::new();
         recent_session_file
-            .expect_read_session_names_from_file()
-            .with(eq(".tmux_recent"))
-            .returning(|_| vec!["a".into(), "b".into(), "c".into()]);
+            .expect_read()
+            .returning(|| vec!["a".into(), "b".into(), "c".into()]);
 
-        let recent = RecentImpl::new(&config, &tmux, &recent_session_file);
+        let recent = RecentImpl::new(&tmux, &recent_session_file);
 
         // When
         let result = recent.previous("c");
@@ -224,18 +188,12 @@ mod previous_tests {
         tmux.expect_list_session_names()
             .returning(|| vec!["a".into(), "b".into(), "c".into()].clone());
 
-        let mut config = MockConfig::new();
-        config
-            .expect_recent_sessions_filename()
-            .returning(|| ".tmux_recent".into());
-
-        let mut recent_session_file = MockRecentSessionFile::new();
+        let mut recent_session_file = MockSessionNameFile::new();
         recent_session_file
-            .expect_read_session_names_from_file()
-            .with(eq(".tmux_recent"))
-            .returning(|_| vec!["a".into(), "b".into(), "c".into()]);
+            .expect_read()
+            .returning(|| vec!["a".into(), "b".into(), "c".into()]);
 
-        let recent = RecentImpl::new(&config, &tmux, &recent_session_file);
+        let recent = RecentImpl::new(&tmux, &recent_session_file);
 
         // When
         let result = recent.previous("a");

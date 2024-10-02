@@ -8,7 +8,23 @@ pub struct Args {
 }
 
 #[derive(Subcommand, Debug)]
-pub(crate) enum Action {
+#[warn(clippy::enum_variant_names)]
+pub(crate) enum ConfigPrintFilename {
+    Sessions,
+    RecentSessions,
+    Bookmarks,
+}
+
+#[derive(Subcommand, Debug)]
+pub(crate) enum ConfigAction {
+    Print {
+        #[command(subcommand)]
+        action: ConfigPrintFilename,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub(crate) enum SessionAction {
     Save {
         /// Optional filename to store sessions
         filename: Option<String>,
@@ -17,6 +33,41 @@ pub(crate) enum Action {
         /// Filename to restore sessions from
         filename: Option<String>,
     },
-    NextRecent,
-    PreviousRecent,
+}
+
+#[derive(Subcommand, Debug)]
+pub(crate) enum RecentSessionAction {
+    Print,
+    Next,
+    Previous,
+}
+
+#[derive(Subcommand, Debug)]
+pub(crate) enum BookmarkAction {
+    Print,
+    Set,
+    Select {
+        /// Index of bookmarked session to select (1-based)
+        index: usize,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub(crate) enum Action {
+    Config {
+        #[command(subcommand)]
+        action: ConfigAction,
+    },
+    Session {
+        #[command(subcommand)]
+        action: SessionAction,
+    },
+    RecentSession {
+        #[command(subcommand)]
+        action: RecentSessionAction,
+    },
+    Bookmark {
+        #[command(subcommand)]
+        action: BookmarkAction,
+    },
 }

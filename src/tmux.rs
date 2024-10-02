@@ -20,6 +20,7 @@ pub(crate) trait Tmux {
     fn select_window(&self, session_name: &str, index: usize);
     fn current_session_name(&self) -> String;
     fn select_session(&self, session_name: &str);
+    fn display_message(&self, message: &str);
 }
 
 pub(crate) struct TmuxImpl;
@@ -181,5 +182,13 @@ impl Tmux for TmuxImpl {
             .arg(session_name)
             .status()
             .expect("Failed to select session.");
+    }
+
+    fn display_message(&self, message: &str) {
+        Command::new("tmux")
+            .arg("display-message")
+            .arg(message)
+            .status()
+            .expect("Failed to display message.");
     }
 }
