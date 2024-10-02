@@ -19,6 +19,7 @@ vim.keymap.set( "n", "<Esc>", ":wq!<CR>", { silent = true } )
 vim.keymap.set( "n", "<A-q>", ":wq!<CR>", { silent = true } )
 vim.keymap.set( "n", "<A-j>", "j", { silent = true } )
 vim.keymap.set( "n", "<A-k>", "k", { silent = true } )
+vim.keymap.set( "n", ":", function() end, { silent = true } )
 
 if is_wsl then
   -- Alacritty doesn't want to send Ctrl+Alt, so the only way is to use AHK.
