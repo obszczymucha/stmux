@@ -9,3 +9,4 @@
 
 3. Add recent-session set option and plug it into the scripts.
 
+4. Remove hardcoded paths.
