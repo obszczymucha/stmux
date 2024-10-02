@@ -50,6 +50,7 @@ pub(crate) enum BookmarkAction {
         /// Index of bookmarked session to select (1-based)
         index: usize,
     },
+    Edit
 }
 
 #[derive(Subcommand, Debug)]

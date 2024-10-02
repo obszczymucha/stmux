@@ -2,8 +2,9 @@ use crate::{session_name_file::SessionNameFile, tmux::Tmux};
 
 pub(crate) trait Bookmarks {
     fn print(&self);
-    fn bookmark(&self, tmux: &dyn Tmux);
+    fn set(&self, tmux: &dyn Tmux);
     fn select(&self, index: usize) -> Option<String>;
+    fn edit(&self, tmux: &dyn Tmux);
 }
 
 pub(crate) struct BookmarksImpl<'s, S: SessionNameFile> {
@@ -25,7 +26,7 @@ impl<'s, S: SessionNameFile> Bookmarks for BookmarksImpl<'s, S> {
         }
     }
 
-    fn bookmark(&self, tmux: &dyn Tmux) {
+    fn set(&self, tmux: &dyn Tmux) {
         let current_session_name = tmux.current_session_name();
         let bookmarks = self.bookmarks_file.read();
 
@@ -38,5 +39,26 @@ impl<'s, S: SessionNameFile> Bookmarks for BookmarksImpl<'s, S> {
     fn select(&self, index: usize) -> Option<String> {
         let bookmarks = self.bookmarks_file.read();
         bookmarks.get(index - 1).map(|s| s.to_string())
+    }
+
+    fn edit(&self, tmux: &dyn Tmux) {
+        let width = self
+            .bookmarks_file
+            .read()
+            .iter()
+            .map(|s| s.len())
+            .max()
+            .unwrap_or(17);
+
+        tmux.display_popup(
+            "Bookmarks",
+            "fg=#806aba",
+            width + 6,
+            7,
+            &format!(
+                "nvim --clean -u {} {}",
+                "/home/alien/.config/stmux/nvim-config.lua", "/home/alien/.config/stmux/bookmarks"
+            ),
+        );
     }
 }

@@ -21,6 +21,14 @@ pub(crate) trait Tmux {
     fn current_session_name(&self) -> String;
     fn select_session(&self, session_name: &str);
     fn display_message(&self, message: &str);
+    fn display_popup(
+        &self,
+        title: &str,
+        border_color: &str,
+        width: usize,
+        height: usize,
+        command: &str,
+    );
 }
 
 pub(crate) struct TmuxImpl;
@@ -190,5 +198,22 @@ impl Tmux for TmuxImpl {
             .arg(message)
             .status()
             .expect("Failed to display message.");
+    }
+
+    fn display_popup(&self, title: &str, style: &str, width: usize, height: usize, command: &str) {
+        Command::new("tmux")
+            .arg("display-popup")
+            .arg("-E")
+            .arg("-T")
+            .arg(title)
+            .arg("-S")
+            .arg(style)
+            .arg("-w")
+            .arg(width.to_string())
+            .arg("-h")
+            .arg(height.to_string())
+            .arg(command)
+            .status()
+            .expect("Failed to display popup.");
     }
 }

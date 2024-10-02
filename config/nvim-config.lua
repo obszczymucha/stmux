@@ -5,15 +5,18 @@ vim.opt.number = true
 vim.opt.numberwidth = 3
 vim.opt.fillchars = { eob = " " }
 vim.opt.termguicolors = true
+vim.opt.cursorline = true
+vim.opt.cursorlineopt = "line,number"
+vim.opt.guicursor = 'n-c:block,i:block-iCursor,r:block-rCursor,v:block-vCursor'
 
 ---@diagnostic disable-next-line: undefined-field
 local release = vim.loop.os_uname().release
 ---@diagnostic disable-next-line: lowercase-global
 is_wsl = release:match( "microsoft" ) and true or release:match( "WSL" ) and true or false
 
-vim.keymap.set( "n", "q", ":q!<CR>", { silent = true } )
-vim.keymap.set( "n", "<Esc>", ":q!<CR>", { silent = true } )
-vim.keymap.set( "n", "<A-q>", ":q!<CR>", { silent = true } )
+vim.keymap.set( "n", "q", ":wq!<CR>", { silent = true } )
+vim.keymap.set( "n", "<Esc>", ":wq!<CR>", { silent = true } )
+vim.keymap.set( "n", "<A-q>", ":wq!<CR>", { silent = true } )
 vim.keymap.set( "n", "<A-j>", "j", { silent = true } )
 vim.keymap.set( "n", "<A-k>", "k", { silent = true } )
 

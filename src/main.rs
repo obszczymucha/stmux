@@ -88,7 +88,7 @@ fn main() {
                 let file = SessionNameFileImpl::new(config.bookmarks_filename().as_str());
                 let bookmarks = BookmarksImpl::new(&file);
 
-                bookmarks.bookmark(&tmux);
+                bookmarks.set(&tmux);
             }
             BookmarkAction::Select { index } => {
                 let file = SessionNameFileImpl::new(config.bookmarks_filename().as_str());
@@ -97,6 +97,12 @@ fn main() {
                 if let Some(name) = bookmarks.select(index) {
                     TmuxImpl.select_session(&name);
                 }
+            }
+            BookmarkAction::Edit => {
+                let file = SessionNameFileImpl::new(config.bookmarks_filename().as_str());
+                let bookmarks = BookmarksImpl::new(&file);
+
+                bookmarks.edit(&TmuxImpl);
             }
         },
     }
