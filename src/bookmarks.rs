@@ -1,12 +1,12 @@
 use std::cmp::max;
 
-use crate::{session_name_file::SessionNameFile, tmux::Tmux};
+use crate::{config::Config, session_name_file::SessionNameFile, tmux::Tmux};
 
 pub(crate) trait Bookmarks {
     fn print(&self);
     fn set(&self, tmux: &dyn Tmux);
     fn select(&self, index: usize) -> Option<String>;
-    fn edit(&self, tmux: &dyn Tmux);
+    fn edit(&self, config: &dyn Config, tmux: &dyn Tmux);
 }
 
 pub(crate) struct BookmarksImpl<'s, S: SessionNameFile> {
@@ -43,7 +43,7 @@ impl<'s, S: SessionNameFile> Bookmarks for BookmarksImpl<'s, S> {
         bookmarks.get(index - 1).map(|s| s.to_string())
     }
 
-    fn edit(&self, tmux: &dyn Tmux) {
+    fn edit(&self, config: &dyn Config, tmux: &dyn Tmux) {
         let width = self
             .bookmarks_file
             .read()
@@ -59,7 +59,8 @@ impl<'s, S: SessionNameFile> Bookmarks for BookmarksImpl<'s, S> {
             7,
             &format!(
                 "nvim --clean -u {} {}",
-                "/home/alien/.config/stmux/nvim-config.lua", "/home/alien/.config/stmux/bookmarks"
+                config.neovim_config_filename(),
+                config.bookmarks_filename()
             ),
         );
     }

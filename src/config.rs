@@ -6,6 +6,7 @@ const CONFIG_LOCATION: &str = ".config/stmux";
 const SESSIONS_FILENAME: &str = "sessions.toml";
 const RECENT_SESSIONS_FILENAME: &str = "recent_sessions";
 const BOOKMARKS_FILENAME: &str = "bookmarks";
+const NEOVIM_CONFIG_FILENAME: &str = "nvim-config.lua";
 
 #[automock]
 pub(crate) trait Config {
@@ -13,6 +14,7 @@ pub(crate) trait Config {
     fn sessions_filename(&self) -> String;
     fn recent_sessions_filename(&self) -> String;
     fn bookmarks_filename(&self) -> String;
+    fn neovim_config_filename(&self) -> String;
 }
 
 pub(crate) struct ConfigImpl;
@@ -53,5 +55,9 @@ impl Config for ConfigImpl {
 
     fn bookmarks_filename(&self) -> String {
         ConfigImpl::filename_at_config(BOOKMARKS_FILENAME)
+    }
+
+    fn neovim_config_filename(&self) -> String {
+        ConfigImpl::filename_at_config(NEOVIM_CONFIG_FILENAME)
     }
 }

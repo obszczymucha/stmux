@@ -102,7 +102,7 @@ fn main() {
                 let file = SessionNameFileImpl::new(config.bookmarks_filename().as_str());
                 let bookmarks = BookmarksImpl::new(&file);
 
-                bookmarks.edit(&TmuxImpl);
+                bookmarks.edit(&config, &TmuxImpl);
             }
         },
     }
