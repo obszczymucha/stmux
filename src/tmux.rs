@@ -33,6 +33,16 @@ pub(crate) trait Tmux {
 
 pub(crate) struct TmuxImpl;
 
+impl TmuxImpl {
+    fn center_title(&self, title: &str, popup_width: usize) -> String {
+        let title_width = title.len() + 2;
+        let left_padding = (popup_width - 2 - title_width) / 2 - 1;
+        let c = "\u{2500}";
+
+        format!("{} {} ", c.repeat(left_padding), title)
+    }
+}
+
 impl Tmux for TmuxImpl {
     fn list_session_names(&self) -> Vec<SessionName> {
         let output = Command::new("tmux")
@@ -205,7 +215,7 @@ impl Tmux for TmuxImpl {
             .arg("display-popup")
             .arg("-E")
             .arg("-T")
-            .arg(title)
+            .arg(self.center_title(title, width))
             .arg("-S")
             .arg(style)
             .arg("-w")

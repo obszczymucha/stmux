@@ -52,10 +52,12 @@ impl<'s, S: SessionNameFile> Bookmarks for BookmarksImpl<'s, S> {
             .max()
             .unwrap_or(17);
 
+        let popup_width = max(width + 6, 18);
+
         tmux.display_popup(
             "Bookmarks",
             "fg=#806aba",
-            max(width + 6, 18),
+            popup_width,
             7,
             &format!(
                 "nvim --clean -u {} {}",
