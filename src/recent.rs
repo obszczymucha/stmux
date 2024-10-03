@@ -59,7 +59,7 @@ impl<'t, 's, T: Tmux, S: SessionNameFile> Recent for RecentImpl<'t, 's, T, S> {
         let recent_session_names = &self.recent_session_file.read();
 
         for name in recent_session_names {
-            println!("{}", name.trim());
+            eprintln!("{}", name.trim());
         }
     }
 

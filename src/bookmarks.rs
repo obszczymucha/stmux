@@ -24,7 +24,7 @@ impl<'s, S: SessionNameFile> Bookmarks for BookmarksImpl<'s, S> {
         let bookmarks = self.bookmarks_file.read();
 
         for (i, bookmark) in bookmarks.iter().enumerate() {
-            println!("{:3}: {}", i + 1, bookmark);
+            eprintln!("{:3}: {}", i + 1, bookmark);
         }
     }
 

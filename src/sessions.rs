@@ -25,11 +25,32 @@ impl<'a, T: Tmux> SessionsImpl<'a, T> {
             return;
         }
 
+        eprintln!("Session name: {}. Windows: {}", session_name, windows.len());
         for (i, tmux_window) in windows.into_iter().enumerate() {
             if i == 0 {
-                self.tmux.new_session(session_name, &tmux_window)
+                self.tmux.new_session(session_name, &tmux_window);
+
+                if tmux_window.panes.len() > 1 {
+                    for pane in tmux_window.panes.iter().skip(1) {
+                        self.tmux
+                            .split_window(session_name, &tmux_window.name, &pane.path);
+                    }
+
+                    self.tmux
+                        .select_layout(session_name, &tmux_window.name, &tmux_window.layout);
+                }
             } else {
-                self.tmux.new_window(session_name, &tmux_window, i)
+                self.tmux.new_window(session_name, &tmux_window, i);
+
+                if tmux_window.panes.len() > 1 {
+                    for pane in tmux_window.panes.iter().skip(1) {
+                        self.tmux
+                            .split_window(session_name, &tmux_window.name, &pane.path);
+                    }
+
+                    self.tmux
+                        .select_layout(session_name, &tmux_window.name, &tmux_window.layout);
+                }
             }
         }
 
@@ -53,6 +74,7 @@ impl<'a, T: Tmux> Sessions for SessionsImpl<'a, T> {
     fn restore(&self, filename: &str) {
         eprintln!("Restoring TMUX sessions from {} file...", filename);
         let sessions = load_from_file(filename);
+        eprintln!("sessions: {:?}", sessions);
 
         for (name, windows) in sessions {
             let non_numeric = !utils::is_numeric(name.as_str());

@@ -24,7 +24,7 @@ pub(crate) enum ConfigAction {
 }
 
 #[derive(Subcommand, Debug)]
-pub(crate) enum SessionAction {
+pub(crate) enum SessionsAction {
     Save {
         /// Optional filename to store sessions
         filename: Option<String>,
@@ -60,9 +60,9 @@ pub(crate) enum Action {
         #[command(subcommand)]
         action: ConfigAction,
     },
-    Session {
+    Sessions {
         #[command(subcommand)]
-        action: SessionAction,
+        action: SessionsAction,
     },
     RecentSession {
         #[command(subcommand)]

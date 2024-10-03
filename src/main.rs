@@ -8,7 +8,7 @@ mod sessions;
 mod tmux;
 mod utils;
 use args::{
-    Action, BookmarkAction, ConfigAction, ConfigPrintFilename, RecentSessionAction, SessionAction,
+    Action, BookmarkAction, ConfigAction, ConfigPrintFilename, RecentSessionAction, SessionsAction,
 };
 use bookmarks::{Bookmarks, BookmarksImpl};
 use clap::Parser;
@@ -27,22 +27,22 @@ fn main() {
         Action::Config { action } => match action {
             ConfigAction::Print { action } => match action {
                 ConfigPrintFilename::Sessions => {
-                    println!("{}", config.sessions_filename());
+                    eprintln!("{}", config.sessions_filename());
                 }
                 ConfigPrintFilename::RecentSessions => {
-                    println!("{}", config.recent_sessions_filename());
+                    eprintln!("{}", config.recent_sessions_filename());
                 }
                 ConfigPrintFilename::Bookmarks => {
-                    println!("{}", config.bookmarks_filename());
+                    eprintln!("{}", config.bookmarks_filename());
                 }
             },
         },
-        Action::Session { action } => match action {
-            SessionAction::Save { filename } => {
+        Action::Sessions { action } => match action {
+            SessionsAction::Save { filename } => {
                 let sessions = SessionsImpl::new(&TmuxImpl);
                 sessions.save(filename.unwrap_or(config.sessions_filename()).as_str())
             }
-            SessionAction::Restore { filename } => {
+            SessionsAction::Restore { filename } => {
                 let sessions = SessionsImpl::new(&TmuxImpl);
                 sessions.restore(filename.unwrap_or(config.sessions_filename()).as_str())
             }
