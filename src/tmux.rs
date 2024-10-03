@@ -134,10 +134,10 @@ impl Tmux for TmuxImpl {
         let name = tmux_window.name.as_str();
         let panes = &tmux_window.panes;
 
-        eprintln!(
-            "Creating new session '{}' with window '{}'.",
-            session_name, name
-        );
+        // eprintln!(
+        //     "Creating new session '{}' with window '{}'.",
+        //     session_name, name
+        // );
 
         let mut command = Command::new("tmux");
         command
@@ -161,10 +161,10 @@ impl Tmux for TmuxImpl {
         let name = tmux_window.name.as_str();
         let panes = &tmux_window.panes;
 
-        eprintln!(
-            "Creating new window '{}' in session '{}'.",
-            name, session_name
-        );
+        // eprintln!(
+        //     "Creating new window '{}' in session '{}'.",
+        //     name, session_name
+        // );
 
         let mut command = Command::new("tmux");
         command
@@ -252,10 +252,10 @@ impl Tmux for TmuxImpl {
     }
 
     fn split_window(&self, session_name: &str, window_name: &str, path: &str) {
-        eprintln!(
-            "Splitting window '{}' in session '{}'.",
-            window_name, session_name
-        );
+        // eprintln!(
+        //     "Splitting window '{}' in session '{}'.",
+        //     window_name, session_name
+        // );
         Command::new("tmux")
             .arg("split-window")
             .arg("-t")
@@ -269,10 +269,10 @@ impl Tmux for TmuxImpl {
     }
 
     fn select_layout(&self, session_name: &str, window_name: &str, layout: &str) {
-        eprintln!(
-            "Selecting layout '{}' for window '{}' in session '{}'.",
-            layout, window_name, session_name
-        );
+        // eprintln!(
+        //     "Selecting layout '{}' for window '{}' in session '{}'.",
+        //     layout, window_name, session_name
+        // );
         Command::new("tmux")
             .arg("select-layout")
             .arg("-t")

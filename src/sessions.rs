@@ -1,7 +1,7 @@
-use std::{collections::HashMap, fs};
+use std::{collections::HashMap, fs, thread::sleep, time::Duration};
 
 use crate::{
-    model::{TmuxSessions, TmuxWindows},
+    model::{Layout, TmuxSessions, TmuxWindows},
     tmux::Tmux,
     utils,
 };
@@ -20,12 +20,17 @@ impl<'a, T: Tmux> SessionsImpl<'a, T> {
         Self { tmux }
     }
 
-    fn process_session(&self, session_name: &str, windows: TmuxWindows) {
+    fn process_session(
+        &self,
+        session_name: &str,
+        windows: TmuxWindows,
+        windows_to_layout: &mut Vec<Layout>,
+    ) {
         if windows.is_empty() {
             return;
         }
 
-        eprintln!("Session name: {}. Windows: {}", session_name, windows.len());
+        // eprintln!("Session name: {}. Windows: {}", session_name, windows.len());
         for (i, tmux_window) in windows.into_iter().enumerate() {
             if i == 0 {
                 self.tmux.new_session(session_name, &tmux_window);
@@ -36,8 +41,11 @@ impl<'a, T: Tmux> SessionsImpl<'a, T> {
                             .split_window(session_name, &tmux_window.name, &pane.path);
                     }
 
-                    self.tmux
-                        .select_layout(session_name, &tmux_window.name, &tmux_window.layout);
+                    windows_to_layout.push(Layout {
+                        session_name: session_name.to_string(),
+                        window_name: tmux_window.name,
+                        layout: tmux_window.layout,
+                    });
                 }
             } else {
                 self.tmux.new_window(session_name, &tmux_window, i);
@@ -48,8 +56,11 @@ impl<'a, T: Tmux> SessionsImpl<'a, T> {
                             .split_window(session_name, &tmux_window.name, &pane.path);
                     }
 
-                    self.tmux
-                        .select_layout(session_name, &tmux_window.name, &tmux_window.layout);
+                    windows_to_layout.push(Layout {
+                        session_name: session_name.to_string(),
+                        window_name: tmux_window.name,
+                        layout: tmux_window.layout,
+                    });
                 }
             }
         }
@@ -74,13 +85,24 @@ impl<'a, T: Tmux> Sessions for SessionsImpl<'a, T> {
     fn restore(&self, filename: &str) {
         eprintln!("Restoring TMUX sessions from {} file...", filename);
         let sessions = load_from_file(filename);
-        eprintln!("sessions: {:?}", sessions);
+        // eprintln!("sessions: {:?}", sessions);
+
+        let mut windows_to_layout = Vec::new();
 
         for (name, windows) in sessions {
             let non_numeric = !utils::is_numeric(name.as_str());
 
             if !windows.is_empty() && non_numeric && !self.tmux.has_session(name.as_str()) {
-                self.process_session(name.as_str(), windows);
+                self.process_session(name.as_str(), windows, &mut windows_to_layout);
+            }
+        }
+
+        if !windows_to_layout.is_empty() {
+            sleep(Duration::from_millis(250)); // To remove WSL quirks.
+
+            for layout in windows_to_layout {
+                self.tmux
+                    .select_layout(&layout.session_name, &layout.window_name, &layout.layout);
             }
         }
     }
