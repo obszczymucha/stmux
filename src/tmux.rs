@@ -36,6 +36,11 @@ pub(crate) struct TmuxImpl;
 impl TmuxImpl {
     fn center_title(&self, title: &str, popup_width: usize) -> String {
         let title_width = title.len() + 2;
+
+        if title_width >= popup_width - 3 {
+            return format!(" {} ", &title[..(popup_width - 6)]);
+        }
+
         let left_padding = (popup_width - 2 - title_width) / 2 - 1;
         let c = "\u{2500}";
 

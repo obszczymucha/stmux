@@ -1,9 +1,12 @@
-use crate::{session_name_file::SessionNameFile, tmux::Tmux};
+use std::cmp::max;
+
+use crate::{config::Config, session_name_file::SessionNameFile, tmux::Tmux};
 
 pub(crate) trait Recent {
     fn next(&self, session_name: &str) -> Option<String>;
     fn previous(&self, session_name: &str) -> Option<String>;
     fn print(&self);
+    fn edit(&self, config: &dyn Config);
 }
 
 pub(crate) struct RecentImpl<'t, 's, T: Tmux, S: SessionNameFile> {
@@ -58,6 +61,30 @@ impl<'t, 's, T: Tmux, S: SessionNameFile> Recent for RecentImpl<'t, 's, T, S> {
         for name in recent_session_names {
             println!("{}", name.trim());
         }
+    }
+
+    fn edit(&self, config: &dyn Config) {
+        let width = self
+            .recent_session_file
+            .read()
+            .iter()
+            .map(|s| s.len())
+            .max()
+            .unwrap_or(17);
+
+        let popup_width = max(width + 6, 21);
+
+        self.tmux.display_popup(
+            "Recent sessions",
+            "fg=#806aba", // TODO: put in the config
+            popup_width,
+            7,
+            &format!(
+                "nvim --clean -u {} {}",
+                config.neovim_config_filename(),
+                config.recent_sessions_filename()
+            ),
+        );
     }
 }
 

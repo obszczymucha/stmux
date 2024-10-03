@@ -11,8 +11,7 @@
 4. Add support for pane creation.
 5. Capture panes when saving sessions.
 6. Load panes when loading sessions.
-7. Add "edit recent sessions" editor.
-8. Replace "select session" script with code.
-9. Merge current active sessions with stored sessions when selecting a session.
-10. Create a session when selecting a session that is inactive.
+7. Replace "select session" script with code.
+8. Merge current active sessions with stored sessions when selecting a session.
+9. Create a session when selecting a session that is inactive.
 

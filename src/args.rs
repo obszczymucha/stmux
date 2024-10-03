@@ -40,6 +40,7 @@ pub(crate) enum RecentSessionAction {
     Print,
     Next,
     Previous,
+    Edit,
 }
 
 #[derive(Subcommand, Debug)]
@@ -50,7 +51,7 @@ pub(crate) enum BookmarkAction {
         /// Index of bookmarked session to select (1-based)
         index: usize,
     },
-    Edit
+    Edit,
 }
 
 #[derive(Subcommand, Debug)]

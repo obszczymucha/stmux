@@ -49,17 +49,15 @@ fn main() {
         },
         Action::RecentSession { action } => match action {
             RecentSessionAction::Print => {
-                let recent_session_file =
-                    SessionNameFileImpl::new(config.recent_sessions_filename().as_str());
-                let recent = RecentImpl::new(&TmuxImpl, &recent_session_file);
+                let file = SessionNameFileImpl::new(config.recent_sessions_filename().as_str());
+                let recent = RecentImpl::new(&TmuxImpl, &file);
 
                 recent.print()
             }
             RecentSessionAction::Next => {
                 let tmux = TmuxImpl;
-                let recent_session_file =
-                    SessionNameFileImpl::new(config.recent_sessions_filename().as_str());
-                let recent = RecentImpl::new(&tmux, &recent_session_file);
+                let file = SessionNameFileImpl::new(config.recent_sessions_filename().as_str());
+                let recent = RecentImpl::new(&tmux, &file);
 
                 if let Some(name) = recent.next(&tmux.current_session_name()) {
                     tmux.select_session(&name);
@@ -67,13 +65,18 @@ fn main() {
             }
             RecentSessionAction::Previous => {
                 let tmux = TmuxImpl;
-                let recent_session_file =
-                    SessionNameFileImpl::new(config.recent_sessions_filename().as_str());
-                let recent = RecentImpl::new(&tmux, &recent_session_file);
+                let file = SessionNameFileImpl::new(config.recent_sessions_filename().as_str());
+                let recent = RecentImpl::new(&tmux, &file);
 
                 if let Some(name) = recent.previous(&tmux.current_session_name()) {
                     tmux.select_session(&name);
                 }
+            }
+            RecentSessionAction::Edit => {
+                let file = SessionNameFileImpl::new(config.recent_sessions_filename().as_str());
+                let recent = RecentImpl::new(&TmuxImpl, &file);
+
+                recent.edit(&config);
             }
         },
         Action::Bookmark { action } => match action {
