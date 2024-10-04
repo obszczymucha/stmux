@@ -3,17 +3,20 @@ mod bookmarks;
 mod config;
 mod model;
 mod recent;
+mod session;
 mod session_name_file;
 mod sessions;
 mod tmux;
 mod utils;
 use args::{
-    Action, BookmarkAction, ConfigAction, ConfigPrintFilename, RecentSessionAction, SessionsAction,
+    Action, BookmarkAction, ConfigAction, ConfigPrintFilename, RecentSessionAction, SessionAction,
+    SessionsAction,
 };
 use bookmarks::{Bookmarks, BookmarksImpl};
 use clap::Parser;
 use config::Config;
 use recent::{Recent, RecentImpl};
+use session::{Session, SessionImpl};
 use session_name_file::SessionNameFileImpl;
 use sessions::{Sessions, SessionsImpl};
 use tmux::{Tmux, TmuxImpl};
@@ -36,6 +39,16 @@ fn main() {
                     eprintln!("{}", config.bookmarks_filename());
                 }
             },
+        },
+        Action::Session { action } => match action {
+            SessionAction::Find => {
+                let session = SessionImpl;
+                session.find();
+            }
+            SessionAction::Select { session_name } => {
+                let session = SessionImpl;
+                session.select(session_name.as_str());
+            }
         },
         Action::Sessions { action } => match action {
             SessionsAction::Save { filename } => {

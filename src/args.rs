@@ -24,6 +24,15 @@ pub(crate) enum ConfigAction {
 }
 
 #[derive(Subcommand, Debug)]
+pub(crate) enum SessionAction {
+    Find,
+    Select {
+        /// Session name to select or create (if configured)
+        session_name: String
+    }
+}
+
+#[derive(Subcommand, Debug)]
 pub(crate) enum SessionsAction {
     Save {
         /// Optional filename to store sessions
@@ -59,6 +68,10 @@ pub(crate) enum Action {
     Config {
         #[command(subcommand)]
         action: ConfigAction,
+    },
+    Session {
+        #[command(subcommand)]
+        action: SessionAction,
     },
     Sessions {
         #[command(subcommand)]
