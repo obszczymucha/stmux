@@ -277,6 +277,8 @@ impl Tmux for TmuxImpl {
         Command::new("tmux")
             .arg("display-popup")
             .arg("-E")
+            .arg("-b")
+            .arg("rounded")
             .arg("-T")
             .arg(self.center_title(title, width))
             .arg("-S")
