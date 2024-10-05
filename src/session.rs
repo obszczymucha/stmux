@@ -53,7 +53,7 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
             .max()
             .unwrap_or(title_len)
             + 6;
-        let max_height = 4;
+        let max_height = 10;
         let mut popup_width = max(width, title_len);
 
         if session_names.len() > max_height && width >= title_len {
