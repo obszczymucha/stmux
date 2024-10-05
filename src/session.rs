@@ -17,6 +17,10 @@ const FZF_DEFAULT_OPTS: &str = "--bind=alt-q:close,alt-j:down,alt-k:up,tab:accep
 pub(crate) trait Session {
     fn find(&self, saved_session_names: &SessionNames);
     fn select(&self, name: &str, sessions: &dyn Sessions);
+    fn save(&self);
+    fn reset(&self);
+    fn set_startup(&self, command: &str);
+    fn delete_startup(&self);
 }
 
 pub(crate) struct SessionImpl<'t, T: Tmux> {
@@ -103,5 +107,21 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
         }
 
         self.tmux.select_session(name);
+    }
+
+    fn save(&self) {
+        unimplemented!()
+    }
+
+    fn reset(&self) {
+        unimplemented!()
+    }
+
+    fn set_startup(&self, command: &str) {
+        eprintln!("TODO: set_startup({})", command);
+    }
+
+    fn delete_startup(&self) {
+        eprintln!("TODO: delete_startup()");
     }
 }

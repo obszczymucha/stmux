@@ -54,6 +54,23 @@ fn main() {
 
                 session.select(session_name.as_str(), &sessions);
             }
+            SessionAction::Save => {
+                let session = SessionImpl::new(&TmuxImpl);
+                session.save();
+            }
+            SessionAction::Reset => {
+                let session = SessionImpl::new(&TmuxImpl);
+                session.reset();
+            }
+            SessionAction::Startup { command, delete } => {
+                let session = SessionImpl::new(&TmuxImpl);
+
+                if delete {
+                    session.delete_startup();
+                } else if let Some(command) = command {
+                    session.set_startup(&command);
+                }
+            }
         },
         Action::Sessions { action } => match action {
             SessionsAction::Save { filename } => {

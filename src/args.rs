@@ -27,19 +27,29 @@ pub(crate) enum ConfigAction {
 pub(crate) enum SessionAction {
     Find,
     Select {
-        /// Session name to select or create (if configured)
-        session_name: String
-    }
+        /// Session name to select or create (if configured).
+        session_name: String,
+    },
+    Save,
+    Reset,
+    #[group(required = true, multiple = false)]
+    Startup {
+        /// Command to run on session startup in the current pane.
+        #[arg(group = "startup")]
+        command: Option<String>,
+        #[arg(long, group = "startup")]
+        delete: bool,
+    },
 }
 
 #[derive(Subcommand, Debug)]
 pub(crate) enum SessionsAction {
     Save {
-        /// Optional filename to store sessions
+        /// Optional filename to store sessions.
         filename: Option<String>,
     },
     Restore {
-        /// Filename to restore sessions from
+        /// Filename to restore sessions from.
         filename: Option<String>,
     },
 }
@@ -57,7 +67,7 @@ pub(crate) enum BookmarkAction {
     Print,
     Set,
     Select {
-        /// Index of bookmarked session to select (1-based)
+        /// Index of bookmarked session to select.
         index: usize,
     },
     Edit,
