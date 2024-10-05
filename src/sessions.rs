@@ -115,7 +115,7 @@ impl<'t, T: Tmux> Sessions for SessionsImpl<'t, T> {
             }
         }
 
-        self.restore_layouts(&windows_to_layout, 250);
+        self.restore_layouts(&windows_to_layout, 300);
     }
 
     fn load(&self) -> TmuxSessions {
@@ -134,7 +134,7 @@ impl<'t, T: Tmux> Sessions for SessionsImpl<'t, T> {
         if let Some(windows) = sessions.get(session_name) {
             let mut windows_to_layout = Vec::new();
             self.process_session(session_name, windows, &mut windows_to_layout);
-            self.restore_layouts(&windows_to_layout, 250);
+            self.restore_layouts(&windows_to_layout, 300);
         }
     }
 }
