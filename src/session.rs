@@ -79,7 +79,7 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
             title, colors
         );
         let fzf_command = format!(
-            "cat {} | fzf {} | xargs -I {{}} tmux switch-client -t '{{}}'",
+            "cat {} | fzf {} | xargs -I {{}} stmux session select '{{}}'",
             input_fifo_path, fzf_opts
         );
 
