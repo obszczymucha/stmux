@@ -40,10 +40,24 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
             if i == 0 {
                 self.tmux.new_session(session_name, tmux_window);
 
+                if let Some(startup_command) = tmux_window.startup_command_for_pane(1) {
+                    self.tmux
+                        .send_keys(session_name, &tmux_window.name, Some(1), &startup_command);
+                }
+
                 if tmux_window.panes.len() > 1 {
-                    for pane in tmux_window.panes.iter().skip(1) {
+                    for (i, pane) in tmux_window.panes.iter().enumerate().skip(1) {
                         self.tmux
                             .split_window(session_name, &tmux_window.name, &pane.path);
+
+                        if let Some(startup_command) = &pane.startup_command {
+                            self.tmux.send_keys(
+                                session_name,
+                                &tmux_window.name,
+                                Some(i),
+                                startup_command,
+                            );
+                        }
                     }
 
                     windows_to_layout.push(Layout {
@@ -55,10 +69,24 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
             } else {
                 self.tmux.new_window(session_name, tmux_window, i);
 
+                if let Some(startup_command) = tmux_window.startup_command_for_pane(1) {
+                    self.tmux
+                        .send_keys(session_name, &tmux_window.name, Some(1), &startup_command);
+                }
+
                 if tmux_window.panes.len() > 1 {
                     for pane in tmux_window.panes.iter().skip(1) {
                         self.tmux
                             .split_window(session_name, &tmux_window.name, &pane.path);
+
+                        if let Some(startup_command) = &pane.startup_command {
+                            self.tmux.send_keys(
+                                session_name,
+                                &tmux_window.name,
+                                Some(i),
+                                startup_command,
+                            );
+                        }
                     }
 
                     windows_to_layout.push(Layout {

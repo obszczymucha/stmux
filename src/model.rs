@@ -16,13 +16,26 @@ pub(crate) struct Layout {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct TmuxWindow {
+    pub(crate) index: usize,
     pub(crate) name: WindowName,
     pub(crate) layout: String,
     pub(crate) panes: Vec<TmuxPane>,
 }
 
+impl TmuxWindow {
+    pub(crate) fn startup_command_for_pane(&self, index: usize) -> Option<String> {
+        if self.panes.is_empty() {
+            None
+        } else {
+            self.panes[index - 1].startup_command.clone()
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct TmuxPane {
+    pub(crate) index: usize,
     pub(crate) path: String,
     pub(crate) active: bool,
+    pub(crate) startup_command: Option<String>,
 }

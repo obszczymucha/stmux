@@ -33,6 +33,13 @@ pub(crate) trait Tmux {
     );
     fn split_window(&self, session_name: &str, window_name: &str, path: &str);
     fn select_layout(&self, session_name: &str, window_name: &str, layout: &str);
+    fn send_keys(
+        &self,
+        session_name: &str,
+        window_name: &str,
+        pane_index: Option<usize>,
+        keys: &str,
+    );
 }
 
 pub(crate) struct TmuxImpl;
@@ -99,35 +106,48 @@ impl Tmux for TmuxImpl {
             .arg("-t")
             .arg(session_name)
             .arg("-F")
-            .arg("#{window_name}:#{window_layout}:#{pane_active}:#{pane_current_path}")
+            .arg("#{window_index}:#{window_name}:#{window_layout}:#{pane_index}:#{pane_active}:#{pane_current_path}")
             .output()
             .expect("Failed to list tmux windows.");
 
         let windows_output = String::from_utf8_lossy(&output.stdout);
-        let mut map: HashMap<WindowName, TmuxWindow> = HashMap::new();
+        let mut windows: Vec<TmuxWindow> = Vec::new();
+        let mut map: HashMap<WindowName, usize> = HashMap::new();
+        let mut index: usize = 0;
 
         for window in windows_output.lines() {
             let tokens = window.split(':').collect::<Vec<&str>>();
-            let name = tokens[0];
-            let layout = tokens[1];
-            let active = tokens[2] == "1";
-            let path = tokens[3].to_string();
-            let pane = TmuxPane { path, active };
+            let window_index = tokens[0].parse::<usize>().unwrap();
+            let window_name = tokens[1];
+            let layout = tokens[2];
+            let pindex = tokens[3].parse::<usize>().unwrap();
+            let active = tokens[4] == "1";
+            let path = tokens[5].to_string();
+            let pane = TmuxPane {
+                index: pindex,
+                path,
+                active,
+                startup_command: None,
+            };
 
-            if let Some(window) = map.get_mut(name) {
+            if let Some(i) = map.get(window_name) {
+                let window = &mut windows[*i];
                 window.panes.push(pane);
             } else {
                 let window = TmuxWindow {
-                    name: name.to_string(),
+                    index: window_index,
+                    name: window_name.to_string(),
                     layout: layout.to_string(),
                     panes: vec![pane],
                 };
 
-                map.insert(name.to_string(), window);
+                windows.push(window);
+                map.insert(window_name.to_string(), index);
+                index += 1;
             }
         }
 
-        map.into_values().collect()
+        windows
     }
 
     fn new_session(&self, session_name: &str, tmux_window: &TmuxWindow) {
@@ -280,5 +300,29 @@ impl Tmux for TmuxImpl {
             .arg(layout)
             .status()
             .expect("Failed to select window layout.");
+    }
+
+    fn send_keys(
+        &self,
+        session_name: &str,
+        window_name: &str,
+        pane_index: Option<usize>,
+        keys: &str,
+    ) {
+        Command::new("tmux")
+            .arg("send-keys")
+            .arg("-t")
+            .arg(format!(
+                "{}:{}{}",
+                session_name,
+                window_name,
+                pane_index
+                    .map(|i| format!(".{}", i))
+                    .unwrap_or("".to_string())
+            ))
+            .arg(format!("\"{}\"", keys))
+            .arg("C-m")
+            .status()
+            .expect("Failed to send keys.");
     }
 }
