@@ -77,14 +77,25 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
         });
 
         // TODO: Extract into fzf-popup module.
-        let colors="--color=border:#806aba --color=scrollbar:#404040 --color=separator:#404040 --color=label:italic:#9f7fff";
+        let cursor_color = "#a08afa";
+        let colors_table = [
+            "--color=border:#806aba",
+            "--color=scrollbar:#404040",
+            "--color=separator:#404040",
+            "--color=label:italic:#9f7fff",
+            "--color=gutter:#1a1323",
+            "--color=current-bg:#3a2943",
+            "--color=marker:#FF0000",
+        ];
+
+        let colors = colors_table.join(" ");
         let fzf_opts = format!(
             "--no-multi --border --border-label \"{}\" {}",
             title, colors
         );
         let fzf_command = format!(
-            "cat {} | fzf {} | xargs -I {{}} stmux session select '{{}}'",
-            input_fifo_path, fzf_opts
+            "echo -ne \"\\e]12;{}\\a\"; cat {} | fzf {} | xargs -I {{}} stmux session select '{{}}'",
+            cursor_color, input_fifo_path, fzf_opts
         );
 
         let tmux_command = format!(
