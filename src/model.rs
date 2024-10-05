@@ -30,6 +30,14 @@ impl TmuxWindow {
             self.panes[index - 1].startup_command.clone()
         }
     }
+
+    pub(crate) fn shell_command_for_pane(&self, index: usize) -> Option<String> {
+        if self.panes.is_empty() {
+            None
+        } else {
+            self.panes[index - 1].shell_command.clone()
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -38,4 +46,5 @@ pub(crate) struct TmuxPane {
     pub(crate) path: String,
     pub(crate) active: bool,
     pub(crate) startup_command: Option<String>,
+    pub(crate) shell_command: Option<String>,
 }

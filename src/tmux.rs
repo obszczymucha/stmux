@@ -16,8 +16,13 @@ pub(crate) trait Tmux {
     fn list_session_names(&self) -> Vec<SessionName>;
     fn list_sessions(&self) -> TmuxSessions;
     fn list_windows(&self, session_name: &str) -> Vec<TmuxWindow>;
-    fn new_session(&self, session_name: &str, tmux_window: &TmuxWindow);
-    fn new_window(&self, session_name: &str, tmux_window: &TmuxWindow, i: usize);
+    fn new_session(
+        &self,
+        session_name: &str,
+        tmux_window: &TmuxWindow,
+        startup_command: &Option<String>,
+    );
+    fn new_window(&self, session_name: &str, tmux_window: &TmuxWindow, i: usize, startup_command: &Option<String>);
     fn has_session(&self, session_name: &str) -> bool;
     fn select_window(&self, session_name: &str, index: usize);
     fn current_session_name(&self) -> String;
@@ -31,7 +36,7 @@ pub(crate) trait Tmux {
         height: usize,
         command: &str,
     );
-    fn split_window(&self, session_name: &str, window_name: &str, path: &str);
+    fn split_window(&self, session_name: &str, window_name: &str, path: &str, startup_command: &Option<String>);
     fn select_layout(&self, session_name: &str, window_name: &str, layout: &str);
     fn send_keys(
         &self,
@@ -128,6 +133,7 @@ impl Tmux for TmuxImpl {
                 path,
                 active,
                 startup_command: None,
+                shell_command: None,
             };
 
             if let Some(i) = map.get(window_name) {
@@ -150,7 +156,12 @@ impl Tmux for TmuxImpl {
         windows
     }
 
-    fn new_session(&self, session_name: &str, tmux_window: &TmuxWindow) {
+    fn new_session(
+        &self,
+        session_name: &str,
+        tmux_window: &TmuxWindow,
+        startup_command: &Option<String>,
+    ) {
         let name = tmux_window.name.as_str();
         let panes = &tmux_window.panes;
 
@@ -174,10 +185,14 @@ impl Tmux for TmuxImpl {
             command.arg("-c").arg(panes[0].path.as_str());
         }
 
+        if let Some(program) = startup_command {
+            command.arg(program);
+        }
+
         command.status().expect("Failed to create new session.");
     }
 
-    fn new_window(&self, session_name: &str, tmux_window: &TmuxWindow, i: usize) {
+    fn new_window(&self, session_name: &str, tmux_window: &TmuxWindow, i: usize, startup_command: &Option<String>) {
         let name = tmux_window.name.as_str();
         let panes = &tmux_window.panes;
 
@@ -198,6 +213,10 @@ impl Tmux for TmuxImpl {
 
         if !panes.is_empty() {
             command.arg("-c").arg(panes[0].path.as_str());
+        }
+
+        if let Some(program) = startup_command {
+            command.arg(program);
         }
 
         command.status().expect("Failed to create new session.");
@@ -271,21 +290,32 @@ impl Tmux for TmuxImpl {
             .expect("Failed to display popup.");
     }
 
-    fn split_window(&self, session_name: &str, window_name: &str, path: &str) {
+    fn split_window(
+        &self,
+        session_name: &str,
+        window_name: &str,
+        path: &str,
+        startup_command: &Option<String>,
+    ) {
         // eprintln!(
         //     "Splitting window '{}' in session '{}'.",
         //     window_name, session_name
         // );
-        Command::new("tmux")
+        let mut command = Command::new("tmux");
+        command
             .arg("split-window")
             .arg("-t")
             .arg(format!("{}:{}", session_name, window_name))
             .arg("-e")
             .arg("NO_CD=1")
             .arg("-c")
-            .arg(path)
-            .status()
-            .expect("Failed to split a window.");
+            .arg(path);
+
+        if let Some(program) = startup_command {
+            command.arg(program);
+        }
+
+        command.status().expect("Failed to split a window.");
     }
 
     fn select_layout(&self, session_name: &str, window_name: &str, layout: &str) {

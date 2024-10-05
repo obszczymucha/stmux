@@ -38,25 +38,40 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
 
         for (i, tmux_window) in windows.iter().enumerate() {
             if i == 0 {
-                self.tmux.new_session(session_name, tmux_window);
+                let command = tmux_window.startup_command_for_pane(1);
+                self.tmux.new_session(session_name, tmux_window, &command);
 
-                if let Some(startup_command) = tmux_window.startup_command_for_pane(1) {
-                    self.tmux
-                        .send_keys(session_name, &tmux_window.name, Some(1), &startup_command);
+                if command.is_none() {
+                    if let Some(startup_command) = tmux_window.shell_command_for_pane(1) {
+                        self.tmux.send_keys(
+                            session_name,
+                            &tmux_window.name,
+                            Some(1),
+                            &startup_command,
+                        );
+                    }
                 }
 
                 if tmux_window.panes.len() > 1 {
                     for (i, pane) in tmux_window.panes.iter().enumerate().skip(1) {
-                        self.tmux
-                            .split_window(session_name, &tmux_window.name, &pane.path);
+                        let command = tmux_window.startup_command_for_pane(i);
 
-                        if let Some(startup_command) = &pane.startup_command {
-                            self.tmux.send_keys(
-                                session_name,
-                                &tmux_window.name,
-                                Some(i),
-                                startup_command,
-                            );
+                        self.tmux.split_window(
+                            session_name,
+                            &tmux_window.name,
+                            &pane.path,
+                            &command,
+                        );
+
+                        if command.is_none() {
+                            if let Some(startup_command) = &pane.startup_command {
+                                self.tmux.send_keys(
+                                    session_name,
+                                    &tmux_window.name,
+                                    Some(i),
+                                    startup_command,
+                                );
+                            }
                         }
                     }
 
@@ -67,25 +82,39 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
                     });
                 }
             } else {
-                self.tmux.new_window(session_name, tmux_window, i);
+                let command = tmux_window.startup_command_for_pane(1);
+                self.tmux.new_window(session_name, tmux_window, i, &command);
 
-                if let Some(startup_command) = tmux_window.startup_command_for_pane(1) {
-                    self.tmux
-                        .send_keys(session_name, &tmux_window.name, Some(1), &startup_command);
+                if command.is_none() {
+                    if let Some(startup_command) = tmux_window.startup_command_for_pane(1) {
+                        self.tmux.send_keys(
+                            session_name,
+                            &tmux_window.name,
+                            Some(1),
+                            &startup_command,
+                        );
+                    }
                 }
 
                 if tmux_window.panes.len() > 1 {
                     for pane in tmux_window.panes.iter().skip(1) {
-                        self.tmux
-                            .split_window(session_name, &tmux_window.name, &pane.path);
+                        let command = tmux_window.startup_command_for_pane(i);
+                        self.tmux.split_window(
+                            session_name,
+                            &tmux_window.name,
+                            &pane.path,
+                            &command,
+                        );
 
-                        if let Some(startup_command) = &pane.startup_command {
-                            self.tmux.send_keys(
-                                session_name,
-                                &tmux_window.name,
-                                Some(i),
-                                startup_command,
-                            );
+                        if command.is_none() {
+                            if let Some(startup_command) = &pane.startup_command {
+                                self.tmux.send_keys(
+                                    session_name,
+                                    &tmux_window.name,
+                                    Some(i),
+                                    startup_command,
+                                );
+                            }
                         }
                     }
 
