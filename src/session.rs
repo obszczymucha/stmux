@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::io::Write;
 use std::{
     cmp::{max, min},
@@ -7,13 +8,15 @@ use std::{
     thread,
 };
 
+use crate::model::SessionNames;
+use crate::sessions::Sessions;
 use crate::tmux::Tmux;
 
 const FZF_DEFAULT_OPTS: &str = "--bind=alt-q:close,alt-j:down,alt-k:up,tab:accept --color=fg:#cdd6f4,header:#f38ba8,info:#cba6f7,pointer:#f5e0dc --color=marker:#b4befe,fg+:#cdd6f4,prompt:#cba6f7,hl+:#f38ba8 --color=selected-bg:#45475a";
 
 pub(crate) trait Session {
-    fn find(&self);
-    fn select(&self, name: &str);
+    fn find(&self, saved_session_names: &SessionNames);
+    fn select(&self, name: &str, sessions: &dyn Sessions);
 }
 
 pub(crate) struct SessionImpl<'t, T: Tmux> {
@@ -27,13 +30,14 @@ impl<'t, T: Tmux> SessionImpl<'t, T> {
 }
 
 impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
-    fn find(&self) {
+    fn find(&self, saved_session_names: &SessionNames) {
         let current_session_name = self.tmux.current_session_name();
-        let session_names: Vec<String> = self
+        let session_names: HashSet<String> = self
             .tmux
             .list_session_names()
             .into_iter()
             .filter(|s| s != &current_session_name)
+            .chain(saved_session_names.clone()) // TODO: check this
             .collect();
 
         let input_fifo_path = "/tmp/stmux_fzf_input.fifo";
@@ -93,7 +97,11 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
         let _ = remove_file(input_fifo_path);
     }
 
-    fn select(&self, name: &str) {
-        eprintln!("Selecting session: {}", name);
+    fn select(&self, name: &str, sessions: &dyn Sessions) {
+        if !self.tmux.has_session(name) {
+            sessions.restore(name);
+        }
+
+        self.tmux.select_session(name);
     }
 }

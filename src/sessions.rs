@@ -8,7 +8,8 @@ use crate::{
 
 pub(crate) trait Sessions {
     fn save(&self);
-    fn restore(&self);
+    fn restore_all(&self);
+    fn restore(&self, session_name: &str);
     fn load(&self) -> TmuxSessions;
 }
 
@@ -28,17 +29,16 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
     fn process_session(
         &self,
         session_name: &str,
-        windows: TmuxWindows,
+        windows: &TmuxWindows,
         windows_to_layout: &mut Vec<Layout>,
     ) {
         if windows.is_empty() {
             return;
         }
 
-        // eprintln!("Session name: {}. Windows: {}", session_name, windows.len());
-        for (i, tmux_window) in windows.into_iter().enumerate() {
+        for (i, tmux_window) in windows.iter().enumerate() {
             if i == 0 {
-                self.tmux.new_session(session_name, &tmux_window);
+                self.tmux.new_session(session_name, tmux_window);
 
                 if tmux_window.panes.len() > 1 {
                     for pane in tmux_window.panes.iter().skip(1) {
@@ -48,12 +48,12 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
 
                     windows_to_layout.push(Layout {
                         session_name: session_name.to_string(),
-                        window_name: tmux_window.name,
-                        layout: tmux_window.layout,
+                        window_name: tmux_window.name.clone(),
+                        layout: tmux_window.layout.clone(),
                     });
                 }
             } else {
-                self.tmux.new_window(session_name, &tmux_window, i);
+                self.tmux.new_window(session_name, tmux_window, i);
 
                 if tmux_window.panes.len() > 1 {
                     for pane in tmux_window.panes.iter().skip(1) {
@@ -63,14 +63,27 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
 
                     windows_to_layout.push(Layout {
                         session_name: session_name.to_string(),
-                        window_name: tmux_window.name,
-                        layout: tmux_window.layout,
+                        window_name: tmux_window.name.clone(),
+                        layout: tmux_window.layout.clone(),
                     });
                 }
             }
         }
 
         self.tmux.select_window(session_name, 1)
+    }
+
+    fn restore_layouts(&self, windows_to_layout: &Vec<Layout>, delay_in_millis: u64) {
+        if !windows_to_layout.is_empty() {
+            if delay_in_millis > 0 {
+                sleep(Duration::from_millis(delay_in_millis)); // To remove WSL quirks.
+            }
+
+            for layout in windows_to_layout {
+                self.tmux
+                    .select_layout(&layout.session_name, &layout.window_name, &layout.layout);
+            }
+        }
     }
 }
 
@@ -87,7 +100,7 @@ impl<'t, T: Tmux> Sessions for SessionsImpl<'t, T> {
         eprintln!("TMUX sessions saved to {} file.", &self.filename);
     }
 
-    fn restore(&self) {
+    fn restore_all(&self) {
         eprintln!("Restoring TMUX sessions from {} file...", &self.filename);
         let sessions = self.load();
         // eprintln!("sessions: {:?}", sessions);
@@ -98,28 +111,30 @@ impl<'t, T: Tmux> Sessions for SessionsImpl<'t, T> {
             let non_numeric = !utils::is_numeric(name.as_str());
 
             if !windows.is_empty() && non_numeric && !self.tmux.has_session(name.as_str()) {
-                self.process_session(name.as_str(), windows, &mut windows_to_layout);
+                self.process_session(name.as_str(), &windows, &mut windows_to_layout);
             }
         }
 
-        if !windows_to_layout.is_empty() {
-            sleep(Duration::from_millis(250)); // To remove WSL quirks.
-
-            for layout in windows_to_layout {
-                self.tmux
-                    .select_layout(&layout.session_name, &layout.window_name, &layout.layout);
-            }
-        }
+        self.restore_layouts(&windows_to_layout, 250);
     }
 
     fn load(&self) -> TmuxSessions {
         let file_content = fs::read_to_string(&self.filename);
 
         match file_content {
-            Ok(content) => {
-                toml::from_str(&content).unwrap_or_else(|_| panic!("Failed to parse {}.", &self.filename))
-            }
+            Ok(content) => toml::from_str(&content)
+                .unwrap_or_else(|_| panic!("Failed to parse {}.", &self.filename)),
             Err(_) => HashMap::new(),
+        }
+    }
+
+    fn restore(&self, session_name: &str) {
+        let sessions = self.load();
+
+        if let Some(windows) = sessions.get(session_name) {
+            let mut windows_to_layout = Vec::new();
+            self.process_session(session_name, windows, &mut windows_to_layout);
+            self.restore_layouts(&windows_to_layout, 250);
         }
     }
 }

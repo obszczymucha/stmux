@@ -150,7 +150,7 @@ impl Tmux for TmuxImpl {
             .arg("-e")
             .arg("NO_CD=1");
 
-        if panes.len() > 1 {
+        if !panes.is_empty() {
             command.arg("-c").arg(panes[0].path.as_str());
         }
 
@@ -176,7 +176,7 @@ impl Tmux for TmuxImpl {
             .arg("-e")
             .arg("NO_CD=1");
 
-        if panes.len() > 1 {
+        if !panes.is_empty() {
             command.arg("-c").arg(panes[0].path.as_str());
         }
 

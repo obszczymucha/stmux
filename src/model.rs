@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 pub(crate) type SessionName = String;
+pub(crate) type SessionNames = Vec<SessionName>;
 pub(crate) type WindowName = String;
 pub(crate) type TmuxWindows = Vec<TmuxWindow>;
 pub(crate) type TmuxSessions = HashMap<SessionName, TmuxWindows>;

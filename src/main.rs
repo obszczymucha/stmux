@@ -42,12 +42,17 @@ fn main() {
         },
         Action::Session { action } => match action {
             SessionAction::Find => {
-                let session = SessionImpl::new(&TmuxImpl);
-                session.find();
+                let tmux = TmuxImpl;
+                let sessions = SessionsImpl::new(config.sessions_filename().as_str(), &tmux).load();
+                let session = SessionImpl::new(&tmux);
+                session.find(&sessions.into_keys().collect());
             }
             SessionAction::Select { session_name } => {
-                let session = SessionImpl::new(&TmuxImpl);
-                session.select(session_name.as_str());
+                let tmux = TmuxImpl;
+                let session = SessionImpl::new(&tmux);
+                let sessions = SessionsImpl::new(config.sessions_filename().as_str(), &tmux);
+
+                session.select(session_name.as_str(), &sessions);
             }
         },
         Action::Sessions { action } => match action {
@@ -59,7 +64,7 @@ fn main() {
             SessionsAction::Restore { filename } => {
                 let file = filename.unwrap_or(config.sessions_filename());
                 let sessions = SessionsImpl::new(&file, &TmuxImpl);
-                sessions.restore();
+                sessions.restore_all();
             }
         },
         Action::RecentSession { action } => match action {
