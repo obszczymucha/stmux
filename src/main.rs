@@ -42,11 +42,11 @@ fn main() {
         },
         Action::Session { action } => match action {
             SessionAction::Find => {
-                let session = SessionImpl;
+                let session = SessionImpl::new(&TmuxImpl);
                 session.find();
             }
             SessionAction::Select { session_name } => {
-                let session = SessionImpl;
+                let session = SessionImpl::new(&TmuxImpl);
                 session.select(session_name.as_str());
             }
         },

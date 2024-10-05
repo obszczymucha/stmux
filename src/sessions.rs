@@ -11,12 +11,12 @@ pub(crate) trait Sessions {
     fn restore(&self, filename: &str);
 }
 
-pub(crate) struct SessionsImpl<'a, T: Tmux> {
-    tmux: &'a T,
+pub(crate) struct SessionsImpl<'t, T: Tmux> {
+    tmux: &'t T,
 }
 
-impl<'a, T: Tmux> SessionsImpl<'a, T> {
-    pub(crate) fn new(tmux: &'a T) -> Self {
+impl<'t, T: Tmux> SessionsImpl<'t, T> {
+    pub(crate) fn new(tmux: &'t T) -> Self {
         Self { tmux }
     }
 
@@ -69,7 +69,7 @@ impl<'a, T: Tmux> SessionsImpl<'a, T> {
     }
 }
 
-impl<'a, T: Tmux> Sessions for SessionsImpl<'a, T> {
+impl<'t, T: Tmux> Sessions for SessionsImpl<'t, T> {
     fn save(&self, filename: &str) {
         let stored_sessions = load_from_file(filename);
         let current_sessions = self.tmux.list_sessions();

@@ -10,3 +10,4 @@ serde_derive = "1.0.210"
 clap = { version = "4.5.18", features = ["derive"] }
 dirs-next = "2.0.0"
 mockall = "0.13.0"
+nix = { version = "0.29.0", features = ["fs"] }
