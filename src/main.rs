@@ -52,12 +52,14 @@ fn main() {
         },
         Action::Sessions { action } => match action {
             SessionsAction::Save { filename } => {
-                let sessions = SessionsImpl::new(&TmuxImpl);
-                sessions.save(filename.unwrap_or(config.sessions_filename()).as_str())
+                let file = filename.unwrap_or(config.sessions_filename());
+                let sessions = SessionsImpl::new(&file, &TmuxImpl);
+                sessions.save();
             }
             SessionsAction::Restore { filename } => {
-                let sessions = SessionsImpl::new(&TmuxImpl);
-                sessions.restore(filename.unwrap_or(config.sessions_filename()).as_str())
+                let file = filename.unwrap_or(config.sessions_filename());
+                let sessions = SessionsImpl::new(&file, &TmuxImpl);
+                sessions.restore();
             }
         },
         Action::RecentSession { action } => match action {

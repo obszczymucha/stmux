@@ -7,17 +7,22 @@ use crate::{
 };
 
 pub(crate) trait Sessions {
-    fn save(&self, filename: &str);
-    fn restore(&self, filename: &str);
+    fn save(&self);
+    fn restore(&self);
+    fn load(&self) -> TmuxSessions;
 }
 
 pub(crate) struct SessionsImpl<'t, T: Tmux> {
+    filename: String,
     tmux: &'t T,
 }
 
 impl<'t, T: Tmux> SessionsImpl<'t, T> {
-    pub(crate) fn new(tmux: &'t T) -> Self {
-        Self { tmux }
+    pub(crate) fn new(filename: &str, tmux: &'t T) -> Self {
+        Self {
+            filename: filename.to_string(),
+            tmux,
+        }
     }
 
     fn process_session(
@@ -70,21 +75,21 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
 }
 
 impl<'t, T: Tmux> Sessions for SessionsImpl<'t, T> {
-    fn save(&self, filename: &str) {
-        let stored_sessions = load_from_file(filename);
+    fn save(&self) {
+        let stored_sessions = self.load();
         let current_sessions = self.tmux.list_sessions();
         let sessions = merge(stored_sessions, current_sessions);
         let toml_string =
             toml::to_string(&sessions).expect("Failed to serialize sessions into TOML.");
 
-        fs::write(filename, toml_string)
-            .unwrap_or_else(|_| panic!("Failed to write to {}.", filename));
-        eprintln!("TMUX sessions saved to {} file.", filename);
+        fs::write(&self.filename, toml_string)
+            .unwrap_or_else(|_| panic!("Failed to write to {}.", &self.filename));
+        eprintln!("TMUX sessions saved to {} file.", &self.filename);
     }
 
-    fn restore(&self, filename: &str) {
-        eprintln!("Restoring TMUX sessions from {} file...", filename);
-        let sessions = load_from_file(filename);
+    fn restore(&self) {
+        eprintln!("Restoring TMUX sessions from {} file...", &self.filename);
+        let sessions = self.load();
         // eprintln!("sessions: {:?}", sessions);
 
         let mut windows_to_layout = Vec::new();
@@ -106,6 +111,17 @@ impl<'t, T: Tmux> Sessions for SessionsImpl<'t, T> {
             }
         }
     }
+
+    fn load(&self) -> TmuxSessions {
+        let file_content = fs::read_to_string(&self.filename);
+
+        match file_content {
+            Ok(content) => {
+                toml::from_str(&content).unwrap_or_else(|_| panic!("Failed to parse {}.", &self.filename))
+            }
+            Err(_) => HashMap::new(),
+        }
+    }
 }
 
 fn merge(config_sessions: TmuxSessions, current_sessions: TmuxSessions) -> TmuxSessions {
@@ -122,15 +138,4 @@ fn merge(config_sessions: TmuxSessions, current_sessions: TmuxSessions) -> TmuxS
     }
 
     sessions
-}
-
-fn load_from_file(filename: &str) -> TmuxSessions {
-    let file_content = fs::read_to_string(filename);
-
-    match file_content {
-        Ok(content) => {
-            toml::from_str(&content).unwrap_or_else(|_| panic!("Failed to parse {}.", filename))
-        }
-        Err(_) => HashMap::new(),
-    }
 }

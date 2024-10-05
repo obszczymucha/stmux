@@ -68,6 +68,7 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
             Ok(())
         });
 
+        // TODO: Extract into fzf-popup module.
         let colors="--color=border:#806aba --color=scrollbar:#404040 --color=separator:#404040 --color=label:italic:#9f7fff";
         let fzf_opts = format!(
             "--no-multi --border --border-label \"{}\" {}",
