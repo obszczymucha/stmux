@@ -8,6 +8,7 @@ use crate::model::SessionName;
 use crate::model::TmuxPane;
 use crate::model::TmuxSessions;
 use crate::model::TmuxWindow;
+use crate::model::WindowDimension;
 use crate::model::WindowName;
 use crate::utils;
 
@@ -58,6 +59,7 @@ pub(crate) trait Tmux {
         pane_index: Option<usize>,
         keys: &str,
     );
+    fn window_dimension(&self) -> Option<WindowDimension>;
 }
 
 pub(crate) struct TmuxImpl;
@@ -390,5 +392,26 @@ impl Tmux for TmuxImpl {
             .arg("C-m")
             .status()
             .expect("Failed to send keys.");
+    }
+
+    fn window_dimension(&self) -> Option<WindowDimension> {
+        let output = Command::new("tmux")
+            .arg("display-message")
+            .arg("-p")
+            .arg("#{window_width}x#{window_height}")
+            .output()
+            .expect("Failed to get window dimension.");
+
+        let dimension_str = String::from_utf8_lossy(&output.stdout);
+        dimension_str
+            .trim()
+            .split_once('x')
+            .into_iter()
+            .flat_map(|(width, height)| {
+                let width = width.parse::<usize>().ok()?;
+                let height = height.parse::<usize>().ok()?;
+                Some(WindowDimension { width, height })
+            })
+            .next()
     }
 }

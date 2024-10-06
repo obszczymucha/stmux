@@ -8,6 +8,12 @@ pub(crate) type WindowName = String;
 pub(crate) type TmuxWindows = Vec<TmuxWindow>;
 pub(crate) type TmuxSessions = HashMap<SessionName, TmuxWindows>;
 
+#[derive(Serialize, Deserialize, Debug)]
+pub(crate) struct WindowDimension {
+    pub(crate) width: usize,
+    pub(crate) height: usize,
+}
+
 pub(crate) struct Layout {
     pub(crate) session_name: SessionName,
     pub(crate) window_name: WindowName,

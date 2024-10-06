@@ -36,6 +36,7 @@ impl<'t, T: Tmux> SessionImpl<'t, T> {
 impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
     fn find(&self, saved_session_names: &SessionNames) {
         let current_session_name = self.tmux.current_session_name();
+        let window_dimension = self.tmux.window_dimension();
         let unique_session_names: HashSet<String> = self
             .tmux
             .list_session_names()
@@ -91,6 +92,14 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
         ];
 
         let colors = colors_table.join(" ");
+        let y = window_dimension
+            .map(|dimension| {
+                eprintln!("dimension: {:?}", dimension);
+                let pos = dimension.height / 2 - 1;
+                format!("-y {} ", pos)
+            })
+            .unwrap_or("".to_string());
+
         let fzf_opts = format!(
             "--no-multi --border --border-label \"{}\" {}",
             title, colors
@@ -101,7 +110,8 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
         );
 
         let tmux_command = format!(
-            "tmux display-popup -E -B -e 'FZF_DEFAULT_OPTS={}' -w {} -h {} '{}'",
+            "tmux display-popup -E -B {}-e 'FZF_DEFAULT_OPTS={}' -w {} -h {} '{}'",
+            y,
             std::env::var("FZF_DEFAULT_OPTS").unwrap_or(FZF_DEFAULT_OPTS.to_string()),
             popup_width,
             height,
