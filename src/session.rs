@@ -12,7 +12,7 @@ use crate::model::SessionNames;
 use crate::sessions::Sessions;
 use crate::tmux::Tmux;
 
-const FZF_DEFAULT_OPTS: &str = "--bind=alt-q:close,alt-j:down,alt-k:up,tab:accept --color=fg:#cdd6f4,header:#f38ba8,info:#cba6f7,pointer:#f5e0dc --color=marker:#b4befe,fg+:#cdd6f4,prompt:#cba6f7,hl+:#f38ba8 --color=selected-bg:#45475a";
+const FZF_DEFAULT_OPTS: &str = "--bind=alt-q:close,alt-j:down,alt-k:up,alt-u:page-up,alt-d:page-down,tab:accept --color=fg:#cdd6f4,header:#f38ba8,info:#cba6f7,pointer:#f5e0dc --color=marker:#b4befe,fg+:#cdd6f4,prompt:#cba6f7,hl+:#f38ba8 --color=selected-bg:#45475a";
 
 pub(crate) trait Session {
     fn find(&self, saved_session_names: &SessionNames);
