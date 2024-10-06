@@ -36,13 +36,15 @@ impl<'t, T: Tmux> SessionImpl<'t, T> {
 impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
     fn find(&self, saved_session_names: &SessionNames) {
         let current_session_name = self.tmux.current_session_name();
-        let session_names: HashSet<String> = self
+        let unique_session_names: HashSet<String> = self
             .tmux
             .list_session_names()
             .into_iter()
             .filter(|s| s != &current_session_name)
             .chain(saved_session_names.clone()) // TODO: check this
             .collect();
+        let mut session_names: Vec<String> = unique_session_names.into_iter().collect();
+        session_names.sort();
 
         let input_fifo_path = "/tmp/stmux_fzf_input.fifo";
         let title = " Sessions ";
