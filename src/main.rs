@@ -135,7 +135,11 @@ fn main() {
                 let bookmarks = BookmarksImpl::new(&file);
 
                 if let Some(name) = bookmarks.select(index) {
-                    TmuxImpl.select_session(&name);
+                    let tmux = TmuxImpl;
+                    let session = SessionImpl::new(&tmux);
+                    let sessions = SessionsImpl::new(config.sessions_filename().as_str(), &tmux);
+
+                    session.select(&name, &sessions);
                 }
             }
             BookmarkAction::Edit => {
