@@ -261,7 +261,7 @@ impl Tmux for TmuxImpl {
         let output = Command::new("tmux")
             .arg("has-session")
             .arg("-t")
-            .arg(session_name)
+            .arg(format!("={}", session_name))
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status()
