@@ -10,6 +10,7 @@ vim.opt.cursorlineopt = "line,number"
 vim.opt.guicursor = 'n-c:block,i:block-iCursor,r:block-rCursor,v:block-vCursor'
 
 vim.cmd( "hi Normal guibg=#101010" )
+vim.cmd( "hi CursorLine guibg=#3a2943" )
 
 ---@diagnostic disable-next-line: undefined-field
 local release = vim.loop.os_uname().release
