@@ -45,7 +45,8 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
             .chain(saved_session_names.clone()) // TODO: check this
             .collect();
         let mut session_names: Vec<String> = unique_session_names.into_iter().collect();
-        session_names.sort();
+        let compare = |a: &String, b: &String| a.to_lowercase().cmp(&b.to_lowercase());
+        session_names.sort_by(compare);
 
         let input_fifo_path = "/tmp/stmux_fzf_input.fifo";
         let title = " Sessions ";
