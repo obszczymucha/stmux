@@ -180,7 +180,7 @@ impl<'t, T: Tmux> Sessions for SessionsImpl<'t, T> {
 
         match file_content {
             Ok(content) => toml::from_str(&content)
-                .unwrap_or_else(|_| panic!("Failed to parse {}.", &self.filename)),
+                .unwrap_or_else(|error| panic!("Failed to parse {}: {}.", &self.filename, error.message())),
             Err(_) => HashMap::new(),
         }
     }

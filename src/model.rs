@@ -41,10 +41,17 @@ impl TmuxWindow {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub(crate) struct EnvironmentVariable {
+    pub(crate) name: String,
+    pub(crate) value: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct TmuxPane {
     pub(crate) index: usize,
     pub(crate) path: String,
     pub(crate) active: bool,
     pub(crate) startup_command: Option<String>,
     pub(crate) shell_command: Option<String>,
+    pub(crate) environment: Option<Vec<EnvironmentVariable>>,
 }

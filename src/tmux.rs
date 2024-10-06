@@ -22,7 +22,13 @@ pub(crate) trait Tmux {
         tmux_window: &TmuxWindow,
         startup_command: &Option<String>,
     );
-    fn new_window(&self, session_name: &str, tmux_window: &TmuxWindow, i: usize, startup_command: &Option<String>);
+    fn new_window(
+        &self,
+        session_name: &str,
+        tmux_window: &TmuxWindow,
+        i: usize,
+        startup_command: &Option<String>,
+    );
     fn has_session(&self, session_name: &str) -> bool;
     fn select_window(&self, session_name: &str, index: usize);
     fn current_session_name(&self) -> String;
@@ -36,7 +42,13 @@ pub(crate) trait Tmux {
         height: usize,
         command: &str,
     );
-    fn split_window(&self, session_name: &str, window_name: &str, path: &str, startup_command: &Option<String>);
+    fn split_window(
+        &self,
+        session_name: &str,
+        window_name: &str,
+        path: &str,
+        startup_command: &Option<String>,
+    );
     fn select_layout(&self, session_name: &str, window_name: &str, layout: &str);
     fn send_keys(
         &self,
@@ -134,6 +146,7 @@ impl Tmux for TmuxImpl {
                 active,
                 startup_command: None,
                 shell_command: None,
+                environment: None,
             };
 
             if let Some(i) = map.get(window_name) {
@@ -178,11 +191,19 @@ impl Tmux for TmuxImpl {
             .arg(session_name)
             .arg("-n")
             .arg(name)
-            .arg("-e")
+            .arg("-e") // TODO: Add global config first and add global env variables from there.
             .arg("NO_CD=1");
 
         if !panes.is_empty() {
-            command.arg("-c").arg(panes[0].path.as_str());
+            let pane = &panes[0];
+
+            if let Some(environment) = &pane.environment {
+                for env in environment.iter() {
+                    command.arg("-e").arg(format!("{}={}", env.name, env.value));
+                }
+            }
+
+            command.arg("-c").arg(pane.path.as_str());
         }
 
         if let Some(program) = startup_command {
@@ -192,7 +213,13 @@ impl Tmux for TmuxImpl {
         command.status().expect("Failed to create new session.");
     }
 
-    fn new_window(&self, session_name: &str, tmux_window: &TmuxWindow, i: usize, startup_command: &Option<String>) {
+    fn new_window(
+        &self,
+        session_name: &str,
+        tmux_window: &TmuxWindow,
+        i: usize,
+        startup_command: &Option<String>,
+    ) {
         let name = tmux_window.name.as_str();
         let panes = &tmux_window.panes;
 
@@ -212,7 +239,15 @@ impl Tmux for TmuxImpl {
             .arg("NO_CD=1");
 
         if !panes.is_empty() {
-            command.arg("-c").arg(panes[0].path.as_str());
+            let pane = &panes[0];
+
+            if let Some(environment) = &pane.environment {
+                for env in environment.iter() {
+                    command.arg("-e").arg(format!("{}={}", env.name, env.value));
+                }
+            }
+
+            command.arg("-c").arg(pane.path.as_str());
         }
 
         if let Some(program) = startup_command {
