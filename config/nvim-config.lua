@@ -9,6 +9,8 @@ vim.opt.cursorline = true
 vim.opt.cursorlineopt = "line,number"
 vim.opt.guicursor = 'n-c:block,i:block-iCursor,r:block-rCursor,v:block-vCursor'
 
+vim.cmd( "hi Normal guibg=#101010" )
+
 ---@diagnostic disable-next-line: undefined-field
 local release = vim.loop.os_uname().release
 ---@diagnostic disable-next-line: lowercase-global
