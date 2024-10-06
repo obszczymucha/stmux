@@ -42,7 +42,7 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
                 self.tmux.new_session(session_name, tmux_window, &command);
 
                 if command.is_none() {
-                    if let Some(startup_command) = tmux_window.shell_command_for_pane(1) {
+                    if let Some(startup_command) = tmux_window.shell_command_for_pane(i + 1) {
                         self.tmux.send_keys(
                             session_name,
                             &tmux_window.name,
@@ -54,7 +54,7 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
 
                 if tmux_window.panes.len() > 1 {
                     for (i, pane) in tmux_window.panes.iter().enumerate().skip(1) {
-                        let command = tmux_window.startup_command_for_pane(i);
+                        let command = tmux_window.startup_command_for_pane(i + 1);
 
                         self.tmux.split_window(
                             session_name,
@@ -64,12 +64,12 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
                         );
 
                         if command.is_none() {
-                            if let Some(startup_command) = &pane.startup_command {
+                            if let Some(shell_command) = &pane.shell_command {
                                 self.tmux.send_keys(
                                     session_name,
                                     &tmux_window.name,
                                     Some(i),
-                                    startup_command,
+                                    shell_command,
                                 );
                             }
                         }
@@ -86,7 +86,7 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
                 self.tmux.new_window(session_name, tmux_window, i, &command);
 
                 if command.is_none() {
-                    if let Some(startup_command) = tmux_window.startup_command_for_pane(1) {
+                    if let Some(startup_command) = tmux_window.shell_command_for_pane(1) {
                         self.tmux.send_keys(
                             session_name,
                             &tmux_window.name,
@@ -98,7 +98,7 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
 
                 if tmux_window.panes.len() > 1 {
                     for pane in tmux_window.panes.iter().skip(1) {
-                        let command = tmux_window.startup_command_for_pane(i);
+                        let command = tmux_window.startup_command_for_pane(i + 1);
                         self.tmux.split_window(
                             session_name,
                             &tmux_window.name,
@@ -107,12 +107,12 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
                         );
 
                         if command.is_none() {
-                            if let Some(startup_command) = &pane.startup_command {
+                            if let Some(shell_command) = &pane.shell_command {
                                 self.tmux.send_keys(
                                     session_name,
                                     &tmux_window.name,
                                     Some(i),
-                                    startup_command,
+                                    shell_command,
                                 );
                             }
                         }
@@ -179,8 +179,9 @@ impl<'t, T: Tmux> Sessions for SessionsImpl<'t, T> {
         let file_content = fs::read_to_string(&self.filename);
 
         match file_content {
-            Ok(content) => toml::from_str(&content)
-                .unwrap_or_else(|error| panic!("Failed to parse {}: {}.", &self.filename, error.message())),
+            Ok(content) => toml::from_str(&content).unwrap_or_else(|error| {
+                panic!("Failed to parse {}: {}.", &self.filename, error.message())
+            }),
             Err(_) => HashMap::new(),
         }
     }
