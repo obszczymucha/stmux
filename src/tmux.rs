@@ -42,6 +42,7 @@ pub(crate) trait Tmux {
         border_color: &str,
         width: usize,
         height: usize,
+        y: &Option<usize>,
         command: &str,
     );
     fn split_window(
@@ -303,10 +304,11 @@ impl Tmux for TmuxImpl {
         style: &str,
         width: usize,
         height: usize,
+        y: &Option<usize>,
         command: &str,
     ) {
-        Command::new("tmux")
-            .arg("display-popup")
+        let mut cmd = Command::new("tmux");
+        cmd.arg("display-popup")
             .arg("-E")
             .arg("-b")
             .arg("rounded")
@@ -322,10 +324,13 @@ impl Tmux for TmuxImpl {
             .arg("-w")
             .arg(width.to_string())
             .arg("-h")
-            .arg(height.to_string())
-            .arg(command)
-            .status()
-            .expect("Failed to display popup.");
+            .arg(height.to_string());
+
+        if let Some(y) = y {
+            cmd.arg("-y").arg(y.to_string());
+        }
+
+        cmd.arg(command).status().expect("Failed to display popup.");
     }
 
     fn split_window(

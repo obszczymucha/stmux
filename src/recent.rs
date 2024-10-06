@@ -73,13 +73,16 @@ impl<'t, 's, T: Tmux, S: SessionNameFile> Recent for RecentImpl<'t, 's, T, S> {
             .unwrap_or(17);
 
         let popup_width = max(width + 6, 21);
+        let popup_height = 7;
+        let y = self.tmux.window_dimension().map(|d| d.height / 2 - 1);
 
         self.tmux.display_popup(
             "Recent sessions",
             &Some("fg=#9f7fff italics align=centre".to_string()),
             "fg=#806aba", // TODO: put in the config
             popup_width,
-            7,
+            popup_height,
+            &y,
             &format!(
                 "nvim --clean -u {} {}",
                 config.neovim_config_filename(),
