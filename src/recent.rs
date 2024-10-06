@@ -76,6 +76,7 @@ impl<'t, 's, T: Tmux, S: SessionNameFile> Recent for RecentImpl<'t, 's, T, S> {
 
         self.tmux.display_popup(
             "Recent sessions",
+            &Some("fg=#9f7fff italics align=centre".to_string()),
             "fg=#806aba", // TODO: put in the config
             popup_width,
             7,

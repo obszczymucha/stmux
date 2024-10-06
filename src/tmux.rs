@@ -37,6 +37,7 @@ pub(crate) trait Tmux {
     fn display_popup(
         &self,
         title: &str,
+        title_style: &Option<String>,
         border_color: &str,
         width: usize,
         height: usize,
@@ -60,21 +61,6 @@ pub(crate) trait Tmux {
 }
 
 pub(crate) struct TmuxImpl;
-
-impl TmuxImpl {
-    fn center_title(&self, title: &str, popup_width: usize) -> String {
-        let title_width = title.len() + 2;
-
-        if title_width >= popup_width - 3 {
-            return format!(" {} ", &title[..(popup_width - 6)]);
-        }
-
-        let left_padding = (popup_width - 2 - title_width) / 2 - 1;
-        let c = "\u{2500}";
-
-        format!("{} {} ", c.repeat(left_padding), title)
-    }
-}
 
 impl Tmux for TmuxImpl {
     fn list_session_names(&self) -> Vec<SessionName> {
@@ -308,14 +294,27 @@ impl Tmux for TmuxImpl {
             .expect("Failed to display message.");
     }
 
-    fn display_popup(&self, title: &str, style: &str, width: usize, height: usize, command: &str) {
+    fn display_popup(
+        &self,
+        title: &str,
+        title_style: &Option<String>,
+        style: &str,
+        width: usize,
+        height: usize,
+        command: &str,
+    ) {
         Command::new("tmux")
             .arg("display-popup")
             .arg("-E")
             .arg("-b")
             .arg("rounded")
             .arg("-T")
-            .arg(self.center_title(title, width))
+            .arg(
+                title_style
+                    .as_ref()
+                    .map(|s| format!("#[{}] {} ", s, title))
+                    .unwrap_or(title.to_string()),
+            )
             .arg("-S")
             .arg(style)
             .arg("-w")

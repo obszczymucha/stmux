@@ -56,6 +56,7 @@ impl<'s, S: SessionNameFile> Bookmarks for BookmarksImpl<'s, S> {
 
         tmux.display_popup(
             "Bookmarks",
+            &Some("fg=#9f7fff,italics,align=centre".to_string()),
             "fg=#806aba",
             popup_width,
             7,
