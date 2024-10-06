@@ -26,6 +26,7 @@ pub(crate) struct TmuxWindow {
     pub(crate) name: WindowName,
     pub(crate) layout: String,
     pub(crate) panes: Vec<TmuxPane>,
+    pub(crate) background: Option<bool>,
 }
 
 impl TmuxWindow {

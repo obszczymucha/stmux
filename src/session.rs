@@ -127,10 +127,14 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
 
     fn select(&self, name: &str, sessions: &dyn Sessions) {
         if !self.tmux.has_session(name) {
-            sessions.restore(name);
+            if let Some(background) = sessions.restore(name) {
+                if !background {
+                    self.tmux.select_session(name);
+                }
+            }
+        } else {
+            self.tmux.select_session(name);
         }
-
-        self.tmux.select_session(name);
     }
 
     fn save(&self) {

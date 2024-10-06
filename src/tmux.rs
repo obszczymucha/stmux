@@ -147,6 +147,7 @@ impl Tmux for TmuxImpl {
                     name: window_name.to_string(),
                     layout: layout.to_string(),
                     panes: vec![pane],
+                    background: None
                 };
 
                 windows.push(window);

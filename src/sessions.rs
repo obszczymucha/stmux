@@ -9,7 +9,7 @@ use crate::{
 pub(crate) trait Sessions {
     fn save(&self);
     fn restore_all(&self);
-    fn restore(&self, session_name: &str);
+    fn restore(&self, session_name: &str) -> Option<bool>;
     fn load(&self) -> TmuxSessions;
 }
 
@@ -186,14 +186,24 @@ impl<'t, T: Tmux> Sessions for SessionsImpl<'t, T> {
         }
     }
 
-    fn restore(&self, session_name: &str) {
+    // Returns whether the session was spawned in the background.
+    // Yeah, I know returning optional bool doesn't say shit. I'm lazy.
+    fn restore(&self, session_name: &str) -> Option<bool> {
         let sessions = self.load();
 
-        if let Some(windows) = sessions.get(session_name) {
+        sessions.get(session_name).map(|windows| {
             let mut windows_to_layout = Vec::new();
             self.process_session(session_name, windows, &mut windows_to_layout);
             self.restore_layouts(&windows_to_layout, 300);
-        }
+
+            if !windows.is_empty() {
+                if let Some(background) = windows[0].background {
+                    return background;
+                }
+            }
+
+            false
+        })
     }
 }
 
