@@ -27,26 +27,20 @@ impl<'t, 's, T: Tmux, S: SessionNameFile> RecentImpl<'t, 's, T, S> {
 
 impl<'t, 's, T: Tmux, S: SessionNameFile> Recent for RecentImpl<'t, 's, T, S> {
     fn next(&self, session_name: &str) -> Option<String> {
-        let session_names = self.tmux.list_session_names();
         let recent_session_names = &self.recent_session_file.read();
 
         recent_session_names
             .iter()
-            .filter(|name| session_names.contains(name))
             .skip_while(|&name| name != session_name)
             .nth(1)
             .cloned()
     }
 
     fn previous(&self, session_name: &str) -> Option<String> {
-        let session_names = self.tmux.list_session_names();
         let recent_session_names = &self.recent_session_file.read();
         let mut previous_name = None;
 
-        for name in recent_session_names
-            .iter()
-            .filter(|name| session_names.contains(name))
-        {
+        for name in recent_session_names.iter() {
             if name == session_name {
                 return previous_name.clone();
             }

@@ -97,7 +97,11 @@ fn main() {
                 let recent = RecentImpl::new(&tmux, &file);
 
                 if let Some(name) = recent.next(&tmux.current_session_name()) {
-                    tmux.select_session(&name);
+                    let session = SessionImpl::new(&tmux);
+                    session.select(
+                        &name,
+                        &SessionsImpl::new(config.sessions_filename().as_str(), &tmux),
+                    );
                 }
             }
             RecentSessionAction::Previous => {
@@ -106,7 +110,11 @@ fn main() {
                 let recent = RecentImpl::new(&tmux, &file);
 
                 if let Some(name) = recent.previous(&tmux.current_session_name()) {
-                    tmux.select_session(&name);
+                    let session = SessionImpl::new(&tmux);
+                    session.select(
+                        &name,
+                        &SessionsImpl::new(config.sessions_filename().as_str(), &tmux),
+                    );
                 }
             }
             RecentSessionAction::Edit => {
