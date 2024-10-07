@@ -20,7 +20,7 @@ pub(crate) enum SelectResult {
 }
 
 pub(crate) trait Session {
-    fn find(&self, saved_session_names: &SessionNames);
+    fn find(&self, saved_session_names: &SessionNames, recent_sessions: &SessionNames);
     fn select(&self, name: &str, sessions: &dyn Sessions) -> SelectResult;
     fn save(&self);
     fn reset(&self);
@@ -39,19 +39,25 @@ impl<'t, T: Tmux> SessionImpl<'t, T> {
 }
 
 impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
-    fn find(&self, saved_session_names: &SessionNames) {
+    fn find(&self, saved_session_names: &SessionNames, recent_sessions: &SessionNames) {
         let current_session_name = self.tmux.current_session_name();
         let window_dimension = self.tmux.window_dimension();
         let unique_session_names: HashSet<String> = self
             .tmux
             .list_session_names()
             .into_iter()
-            .filter(|s| s != &current_session_name)
             .chain(saved_session_names.clone()) // TODO: check this
             .collect();
-        let mut session_names: Vec<String> = unique_session_names.into_iter().collect();
+        let mut stored_names: Vec<String> = unique_session_names.into_iter().collect();
         let compare = |a: &String, b: &String| a.to_lowercase().cmp(&b.to_lowercase());
-        session_names.sort_by(compare);
+        stored_names.sort_by(compare);
+
+        let session_names: Vec<String> = recent_sessions
+            .iter()
+            .chain(stored_names.iter().filter(|s| !recent_sessions.contains(s)))
+            .map(|name| name.to_string())
+            .filter(|s| s != &current_session_name)
+            .collect();
 
         let input_fifo_path = "/tmp/stmux_fzf_input.fifo";
         let title = " Sessions ";

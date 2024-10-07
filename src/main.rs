@@ -17,7 +17,7 @@ use clap::Parser;
 use config::Config;
 use recent::{Recent, RecentImpl};
 use session::{SelectResult, Session, SessionImpl};
-use session_name_file::SessionNameFileImpl;
+use session_name_file::{SessionNameFile, SessionNameFileImpl};
 use sessions::{Sessions, SessionsImpl};
 use tmux::{Tmux, TmuxImpl};
 
@@ -41,7 +41,8 @@ fn run(config: &dyn Config, action: Action) {
                 let tmux = TmuxImpl;
                 let sessions = SessionsImpl::new(config.sessions_filename().as_str(), &tmux).load();
                 let session = SessionImpl::new(&tmux);
-                session.find(&sessions.into_keys().collect());
+                let recent_sessions: &dyn SessionNameFile = &SessionNameFileImpl::new(config.recent_sessions_filename().as_str());
+                session.find(&sessions.into_keys().collect(), &recent_sessions.read());
             }
             SessionAction::Select { session_name } => {
                 let tmux = TmuxImpl;
