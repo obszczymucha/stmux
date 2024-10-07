@@ -16,17 +16,13 @@ use bookmarks::{Bookmarks, BookmarksImpl};
 use clap::Parser;
 use config::Config;
 use recent::{Recent, RecentImpl};
-use session::{Session, SessionImpl};
+use session::{SelectResult, Session, SessionImpl};
 use session_name_file::SessionNameFileImpl;
 use sessions::{Sessions, SessionsImpl};
 use tmux::{Tmux, TmuxImpl};
 
-fn main() {
-    let args = args::Args::parse();
-    let config = config::ConfigImpl;
-    config.create_dir();
-
-    match args.action {
+fn run(config: &dyn Config, action: Action) {
+    match action {
         Action::Config { action } => match action {
             ConfigAction::Print { action } => match action {
                 ConfigPrintFilename::Sessions => {
@@ -52,7 +48,17 @@ fn main() {
                 let session = SessionImpl::new(&tmux);
                 let sessions = SessionsImpl::new(config.sessions_filename().as_str(), &tmux);
 
-                session.select(session_name.as_str(), &sessions);
+                let result = session.select(session_name.as_str(), &sessions);
+                if let SelectResult::Selected = result {
+                    run(
+                        config,
+                        Action::RecentSession {
+                            action: RecentSessionAction::Add {
+                                session_name: Some(session_name),
+                            },
+                        },
+                    )
+                }
             }
             SessionAction::Save => {
                 let session = SessionImpl::new(&TmuxImpl);
@@ -121,7 +127,15 @@ fn main() {
                 let file = SessionNameFileImpl::new(config.recent_sessions_filename().as_str());
                 let recent = RecentImpl::new(&TmuxImpl, &file);
 
-                recent.edit(&config);
+                recent.edit(config);
+            }
+            RecentSessionAction::Add { session_name } => {
+                let tmux = &TmuxImpl;
+                let name = session_name.unwrap_or(tmux.current_session_name());
+                let file = SessionNameFileImpl::new(config.recent_sessions_filename().as_str());
+                let recent = RecentImpl::new(tmux, &file);
+
+                recent.add(&name);
             }
         },
         Action::Bookmark { action } => match action {
@@ -157,15 +171,33 @@ fn main() {
                     let session = SessionImpl::new(&tmux);
                     let sessions = SessionsImpl::new(config.sessions_filename().as_str(), &tmux);
 
-                    session.select(&name, &sessions);
+                    let result = session.select(&name, &sessions);
+                    if let SelectResult::Selected = result {
+                        run(
+                            config,
+                            Action::RecentSession {
+                                action: RecentSessionAction::Add {
+                                    session_name: Some(name),
+                                },
+                            },
+                        )
+                    }
                 }
             }
             BookmarkAction::Edit => {
                 let file = SessionNameFileImpl::new(config.bookmarks_filename().as_str());
                 let bookmarks = BookmarksImpl::new(&file);
 
-                bookmarks.edit(&config, &TmuxImpl);
+                bookmarks.edit(config, &TmuxImpl);
             }
         },
     }
+}
+
+fn main() {
+    let args = args::Args::parse();
+    let config = config::ConfigImpl;
+    config.create_dir();
+
+    run(&config, args.action);
 }

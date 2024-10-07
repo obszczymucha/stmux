@@ -60,6 +60,9 @@ pub(crate) enum RecentSessionAction {
     Next,
     Previous,
     Edit,
+    Add {
+        session_name: Option<String>,
+    }
 }
 
 #[derive(Subcommand, Debug)]

@@ -5,6 +5,7 @@ use crate::{
 };
 
 pub(crate) trait Recent {
+    fn add(&self, session_name: &str);
     fn next(&self, session_name: &str) -> Option<String>;
     fn previous(&self, session_name: &str) -> Option<String>;
     fn print(&self);
@@ -26,6 +27,12 @@ impl<'t, 's, T: Tmux, S: SessionNameFile> RecentImpl<'t, 's, T, S> {
 }
 
 impl<'t, 's, T: Tmux, S: SessionNameFile> Recent for RecentImpl<'t, 's, T, S> {
+    fn add(&self, session_name: &str) {
+        let mut names: Vec<String> = vec![session_name.to_string()];
+        self.recent_session_file.read_into(&mut names, session_name);
+        self.recent_session_file.write(&names);
+    }
+
     fn next(&self, session_name: &str) -> Option<String> {
         let recent_session_names = &self.recent_session_file.read();
 
