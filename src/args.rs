@@ -69,6 +69,8 @@ pub(crate) enum BookmarkAction {
     Select {
         /// Index of bookmarked session to select.
         index: usize,
+        #[arg(long = "smart-focus")]
+        smart_focus: Option<usize>,
     },
     Edit,
 }

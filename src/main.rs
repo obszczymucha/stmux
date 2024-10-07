@@ -130,12 +130,22 @@ fn main() {
 
                 bookmarks.set(&tmux);
             }
-            BookmarkAction::Select { index } => {
+            BookmarkAction::Select { index, smart_focus } => {
                 let file = SessionNameFileImpl::new(config.bookmarks_filename().as_str());
                 let bookmarks = BookmarksImpl::new(&file);
+                let tmux = TmuxImpl;
+                let current_session_name = tmux.current_session_name();
 
                 if let Some(name) = bookmarks.select(index) {
-                    let tmux = TmuxImpl;
+                    if name == current_session_name {
+                        if let Some(smart_focus) = smart_focus {
+                            tmux.select_window(&name, smart_focus);
+                            return;
+                        }
+
+                        return;
+                    }
+
                     let session = SessionImpl::new(&tmux);
                     let sessions = SessionsImpl::new(config.sessions_filename().as_str(), &tmux);
 
