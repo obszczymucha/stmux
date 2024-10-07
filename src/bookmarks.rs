@@ -1,6 +1,8 @@
 use std::cmp::max;
 
-use crate::{config::Config, session_name_file::SessionNameFile, tmux::Tmux};
+use crate::{
+    config::Config, model::WindowDimension, session_name_file::SessionNameFile, tmux::Tmux,
+};
 
 pub(crate) trait Bookmarks {
     fn print(&self);
@@ -60,8 +62,10 @@ impl<'s, S: SessionNameFile> Bookmarks for BookmarksImpl<'s, S> {
             "Bookmarks",
             &Some("fg=#9f7fff,italics,align=centre".to_string()),
             "fg=#806aba",
-            popup_width,
-            popup_height,
+            &WindowDimension {
+                width: popup_width,
+                height: popup_height,
+            },
             &y,
             &format!(
                 "nvim --clean -u {} {}",

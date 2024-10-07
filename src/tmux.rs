@@ -40,8 +40,7 @@ pub(crate) trait Tmux {
         title: &str,
         title_style: &Option<String>,
         border_color: &str,
-        width: usize,
-        height: usize,
+        dimension: &WindowDimension,
         y: &Option<usize>,
         command: &str,
     );
@@ -303,8 +302,7 @@ impl Tmux for TmuxImpl {
         title: &str,
         title_style: &Option<String>,
         style: &str,
-        width: usize,
-        height: usize,
+        dimension: &WindowDimension,
         y: &Option<usize>,
         command: &str,
     ) {
@@ -323,9 +321,9 @@ impl Tmux for TmuxImpl {
             .arg("-S")
             .arg(style)
             .arg("-w")
-            .arg(width.to_string())
+            .arg(dimension.width.to_string())
             .arg("-h")
-            .arg(height.to_string());
+            .arg(dimension.height.to_string());
 
         if let Some(y) = y {
             cmd.arg("-y").arg(y.to_string());
