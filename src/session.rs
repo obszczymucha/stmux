@@ -71,8 +71,8 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
         let cursor_color = "#a08afa";
         let colors_table = [
             "--color=border:#806aba",
-            "--color=scrollbar:#404040",
-            "--color=separator:#404040",
+            "--color=scrollbar:#5c5068",
+            "--color=separator:#5c5068",
             "--color=label:italic:#9f7fff",
             "--color=gutter:#1a1323",
             "--color=current-bg:#3a2943",
