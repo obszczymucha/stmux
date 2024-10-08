@@ -8,6 +8,8 @@ mod session_name_file;
 mod sessions;
 mod tmux;
 mod utils;
+use std::collections::HashSet;
+
 use args::{
     Action, BookmarkAction, ConfigAction, ConfigPrintFilename, RecentSessionAction, SessionAction,
     SessionsAction,
@@ -37,12 +39,58 @@ fn run(config: &dyn Config, action: Action) {
             },
         },
         Action::Session { action } => match action {
-            SessionAction::Find => {
+            SessionAction::FindAll => {
                 let tmux = TmuxImpl;
                 let sessions = SessionsImpl::new(config.sessions_filename().as_str(), &tmux).load();
+                let recent_sessions: &dyn SessionNameFile =
+                    &SessionNameFileImpl::new(config.recent_sessions_filename().as_str());
+                let saved_session_names: Vec<String> = sessions.into_keys().collect();
+                let recent_session_names: Vec<String> = recent_sessions.read();
+                let unique_session_names: HashSet<String> = tmux
+                    .list_session_names()
+                    .into_iter()
+                    .chain(saved_session_names) // TODO: check this
+                    .collect();
+                let mut stored_names: Vec<String> = unique_session_names.into_iter().collect();
+                let compare = |a: &String, b: &String| a.to_lowercase().cmp(&b.to_lowercase());
+                stored_names.sort_by(compare);
+                let current_session_name = tmux.current_session_name();
+
+                let session_names: Vec<String> = recent_session_names
+                    .iter()
+                    .chain(
+                        stored_names
+                            .iter()
+                            .filter(|s| !recent_session_names.contains(s)),
+                    )
+                    .map(|name| name.to_string())
+                    .filter(|s| s != &current_session_name)
+                    .collect();
+
+                if session_names.is_empty() {
+                    tmux.display_message("No other sessions found.");
+                    return;
+                }
+
                 let session = SessionImpl::new(&tmux);
-                let recent_sessions: &dyn SessionNameFile = &SessionNameFileImpl::new(config.recent_sessions_filename().as_str());
-                session.find(&sessions.into_keys().collect(), &recent_sessions.read());
+                session.find(session_names, "All Sessions");
+            }
+            SessionAction::Find => {
+                let tmux = TmuxImpl;
+                let current_session_name = tmux.current_session_name();
+                let session_names: Vec<String> = tmux
+                    .list_session_names()
+                    .into_iter()
+                    .filter(|s| s != &current_session_name)
+                    .collect();
+
+                if session_names.is_empty() {
+                    tmux.display_message("No other sessions active.");
+                    return;
+                }
+
+                let session = SessionImpl::new(&tmux);
+                session.find(session_names, "Sessions");
             }
             SessionAction::Select { session_name } => {
                 let tmux = TmuxImpl;

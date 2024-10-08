@@ -25,6 +25,8 @@ pub(crate) enum ConfigAction {
 
 #[derive(Subcommand, Debug)]
 pub(crate) enum SessionAction {
+    #[clap(name = "find-all")]
+    FindAll,
     Find,
     Select {
         /// Session name to select or create (if configured).

@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::io::Write;
 use std::{
     cmp::{max, min},
@@ -8,14 +7,14 @@ use std::{
     thread,
 };
 
-use crate::model::SessionNames;
+use crate::model::SessionName;
 use crate::sessions::Sessions;
 use crate::tmux::Tmux;
 
 const FZF_DEFAULT_OPTS: &str = "--bind=alt-q:close,alt-j:down,alt-k:up,alt-u:page-up,alt-d:page-down,tab:accept --color=fg:#cdd6f4,header:#f38ba8,info:#cba6f7,pointer:#f5e0dc --color=marker:#b4befe,fg+:#cdd6f4,prompt:#cba6f7,hl+:#f38ba8 --color=selected-bg:#45475a";
 
 pub(crate) trait Session {
-    fn find(&self, saved_session_names: &SessionNames, recent_sessions: &SessionNames);
+    fn find(&self, session_names: Vec<SessionName>, title: &str);
     fn select(&self, name: &str, sessions: &dyn Sessions);
     fn save(&self);
     fn reset(&self);
@@ -34,29 +33,11 @@ impl<'t, T: Tmux> SessionImpl<'t, T> {
 }
 
 impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
-    fn find(&self, saved_session_names: &SessionNames, recent_sessions: &SessionNames) {
-        let current_session_name = self.tmux.current_session_name();
+    fn find(&self, session_names: Vec<SessionName>, title: &str) {
         let window_dimension = self.tmux.window_dimension();
-        let unique_session_names: HashSet<String> = self
-            .tmux
-            .list_session_names()
-            .into_iter()
-            .chain(saved_session_names.clone()) // TODO: check this
-            .collect();
-        let mut stored_names: Vec<String> = unique_session_names.into_iter().collect();
-        let compare = |a: &String, b: &String| a.to_lowercase().cmp(&b.to_lowercase());
-        stored_names.sort_by(compare);
-
-        let session_names: Vec<String> = recent_sessions
-            .iter()
-            .chain(stored_names.iter().filter(|s| !recent_sessions.contains(s)))
-            .map(|name| name.to_string())
-            .filter(|s| s != &current_session_name)
-            .collect();
-
         let input_fifo_path = "/tmp/stmux_fzf_input.fifo";
-        let title = " Sessions ";
-        let title_len = title.len() + 4;
+        let popup_title = format!(" {} ", title);
+        let title_len = popup_title.len() + 4;
         let width = session_names
             .iter()
             .map(|item| item.len())
@@ -101,7 +82,6 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
         let colors = colors_table.join(" ");
         let y = window_dimension
             .map(|dimension| {
-                eprintln!("dimension: {:?}", dimension);
                 let pos = dimension.height / 2 - 1;
                 format!("-y {} ", pos)
             })
@@ -109,7 +89,7 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
 
         let fzf_opts = format!(
             "--no-multi --border --border-label \"{}\" {}",
-            title, colors
+            popup_title, colors
         );
         let fzf_command = format!(
             "echo -ne \"\\e]12;{}\\a\"; cat {} | fzf {} | xargs -I {{}} stmux session select '{{}}'",
