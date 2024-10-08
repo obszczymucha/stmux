@@ -14,14 +14,9 @@ use crate::tmux::Tmux;
 
 const FZF_DEFAULT_OPTS: &str = "--bind=alt-q:close,alt-j:down,alt-k:up,alt-u:page-up,alt-d:page-down,tab:accept --color=fg:#cdd6f4,header:#f38ba8,info:#cba6f7,pointer:#f5e0dc --color=marker:#b4befe,fg+:#cdd6f4,prompt:#cba6f7,hl+:#f38ba8 --color=selected-bg:#45475a";
 
-pub(crate) enum SelectResult {
-    Selected,
-    NotSelected,
-}
-
 pub(crate) trait Session {
     fn find(&self, saved_session_names: &SessionNames, recent_sessions: &SessionNames);
-    fn select(&self, name: &str, sessions: &dyn Sessions) -> SelectResult;
+    fn select(&self, name: &str, sessions: &dyn Sessions);
     fn save(&self);
     fn reset(&self);
     fn set_startup(&self, command: &str);
@@ -136,20 +131,16 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
         let _ = remove_file(input_fifo_path);
     }
 
-    fn select(&self, name: &str, sessions: &dyn Sessions) -> SelectResult {
+    fn select(&self, name: &str, sessions: &dyn Sessions) {
         if !self.tmux.has_session(name) {
             if let Some(background) = sessions.restore(name) {
                 if !background {
                     self.tmux.select_session(name);
-                    return SelectResult::Selected;
                 }
             }
         } else {
             self.tmux.select_session(name);
-            return SelectResult::Selected;
         }
-
-        SelectResult::NotSelected
     }
 
     fn save(&self) {

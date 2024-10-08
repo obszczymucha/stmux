@@ -16,7 +16,7 @@ use bookmarks::{Bookmarks, BookmarksImpl};
 use clap::Parser;
 use config::Config;
 use recent::{Recent, RecentImpl};
-use session::{SelectResult, Session, SessionImpl};
+use session::{Session, SessionImpl};
 use session_name_file::{SessionNameFile, SessionNameFileImpl};
 use sessions::{Sessions, SessionsImpl};
 use tmux::{Tmux, TmuxImpl};
@@ -49,17 +49,7 @@ fn run(config: &dyn Config, action: Action) {
                 let session = SessionImpl::new(&tmux);
                 let sessions = SessionsImpl::new(config.sessions_filename().as_str(), &tmux);
 
-                let result = session.select(session_name.as_str(), &sessions);
-                if let SelectResult::Selected = result {
-                    run(
-                        config,
-                        Action::RecentSession {
-                            action: RecentSessionAction::Add {
-                                session_name: Some(session_name),
-                            },
-                        },
-                    )
-                }
+                session.select(session_name.as_str(), &sessions);
             }
             SessionAction::Save => {
                 let session = SessionImpl::new(&TmuxImpl);
@@ -172,17 +162,7 @@ fn run(config: &dyn Config, action: Action) {
                     let session = SessionImpl::new(&tmux);
                     let sessions = SessionsImpl::new(config.sessions_filename().as_str(), &tmux);
 
-                    let result = session.select(&name, &sessions);
-                    if let SelectResult::Selected = result {
-                        run(
-                            config,
-                            Action::RecentSession {
-                                action: RecentSessionAction::Add {
-                                    session_name: Some(name),
-                                },
-                            },
-                        )
-                    }
+                    session.select(&name, &sessions);
                 }
             }
             BookmarkAction::Edit => {

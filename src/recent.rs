@@ -1,7 +1,7 @@
 use std::cmp::max;
 
 use crate::{
-    config::Config, model::WindowDimension, session_name_file::SessionNameFile, tmux::Tmux,
+    config::Config, model::WindowDimension, session_name_file::SessionNameFile, tmux::Tmux, utils,
 };
 
 pub(crate) trait Recent {
@@ -28,13 +28,23 @@ impl<'t, 's, T: Tmux, S: SessionNameFile> RecentImpl<'t, 's, T, S> {
 
 impl<'t, 's, T: Tmux, S: SessionNameFile> Recent for RecentImpl<'t, 's, T, S> {
     fn add(&self, session_name: &str) {
+        if utils::is_numeric(session_name) {
+            return;
+        }
+
         let mut names: Vec<String> = vec![session_name.to_string()];
         self.recent_session_file.read_into(&mut names, session_name);
         self.recent_session_file.write(&names);
     }
 
     fn next(&self, session_name: &str) -> Option<String> {
-        let recent_session_names = &self.recent_session_file.read();
+        let recent_session_names = self.recent_session_file.read();
+
+        if !recent_session_names.is_empty()
+            && !recent_session_names.contains(&session_name.to_string())
+        {
+            return Some(recent_session_names[0].clone());
+        }
 
         recent_session_names
             .iter()
