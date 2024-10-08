@@ -39,14 +39,19 @@ impl<'t, 's, T: Tmux, S: SessionNameFile> Recent for RecentImpl<'t, 's, T, S> {
 
     fn next(&self, session_name: &str) -> Option<String> {
         let recent_session_names = self.recent_session_file.read();
-
-        if !recent_session_names.is_empty()
-            && !recent_session_names.contains(&session_name.to_string())
-        {
-            return Some(recent_session_names[0].clone());
+        let current_session_names = self.tmux.list_session_names();
+        let session_names = recent_session_names.into_iter().filter(|s| current_session_names.contains(s)).collect::<Vec<String>>();
+        
+        if session_names.is_empty() {
+            return None;
         }
 
-        recent_session_names
+        if !session_names.contains(&session_name.to_string())
+        {
+            return Some(session_names[0].clone());
+        }
+
+        session_names
             .iter()
             .skip_while(|&name| name != session_name)
             .nth(1)
@@ -54,10 +59,17 @@ impl<'t, 's, T: Tmux, S: SessionNameFile> Recent for RecentImpl<'t, 's, T, S> {
     }
 
     fn previous(&self, session_name: &str) -> Option<String> {
-        let recent_session_names = &self.recent_session_file.read();
+        let recent_session_names = self.recent_session_file.read();
+        let current_session_names = self.tmux.list_session_names();
+        let session_names = recent_session_names.into_iter().filter(|s| current_session_names.contains(s)).collect::<Vec<String>>();
+        
+        if session_names.is_empty() {
+            return None;
+        }
+
         let mut previous_name = None;
 
-        for name in recent_session_names.iter() {
+        for name in session_names.iter() {
             if name == session_name {
                 return previous_name.clone();
             }
