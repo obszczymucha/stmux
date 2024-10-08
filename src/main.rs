@@ -85,7 +85,12 @@ fn run(config: &dyn Config, action: Action) {
                     .collect();
 
                 if session_names.is_empty() {
-                    tmux.display_message("No other sessions active.");
+                    run(
+                        config,
+                        Action::Session {
+                            action: SessionAction::FindAll,
+                        },
+                    );
                     return;
                 }
 

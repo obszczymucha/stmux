@@ -7,4 +7,3 @@
 5. Utilise 'active' for a pane.
 6. Fix shell command with multiple arguments.
 7. Add 'no-recent-tracking' flag in the config to not track a session (currently all background tasks do it).
-8. Be smart which switcher to show - no sessions -> 'All Sesssions'.
