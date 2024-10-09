@@ -19,6 +19,11 @@ pub(crate) struct Layout {
     pub(crate) layout: String,
 }
 
+pub(crate) struct WindowNameAndStatus {
+    pub(crate) name: WindowName,
+    pub(crate) active: bool,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct TmuxWindow {
     pub(crate) index: usize,

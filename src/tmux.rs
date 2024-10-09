@@ -10,6 +10,7 @@ use crate::model::TmuxSessions;
 use crate::model::TmuxWindow;
 use crate::model::WindowDimension;
 use crate::model::WindowName;
+use crate::model::WindowNameAndStatus;
 use crate::utils;
 
 #[automock]
@@ -17,6 +18,7 @@ pub(crate) trait Tmux {
     fn list_session_names(&self) -> Vec<SessionName>;
     fn list_sessions(&self) -> TmuxSessions;
     fn list_windows(&self, session_name: &str) -> Vec<TmuxWindow>;
+    fn list_windows_names_with_status(&self) -> Vec<WindowNameAndStatus>;
     fn new_session(
         &self,
         session_name: &str,
@@ -60,6 +62,7 @@ pub(crate) trait Tmux {
         keys: &str,
     );
     fn window_dimension(&self) -> Option<WindowDimension>;
+    fn set_global(&self, option_name: &str, value: &str);
 }
 
 pub(crate) struct TmuxImpl;
@@ -417,5 +420,36 @@ impl Tmux for TmuxImpl {
                 Some(WindowDimension { width, height })
             })
             .next()
+    }
+
+    fn set_global(&self, option_name: &str, value: &str) {
+        Command::new("tmux")
+            .arg("set")
+            .arg("-g")
+            .arg(option_name)
+            .arg(value)
+            .status()
+            .expect("Failed to set global option.");
+    }
+
+    fn list_windows_names_with_status(&self) -> Vec<WindowNameAndStatus> {
+        let output = Command::new("tmux")
+            .arg("list-windows")
+            .arg("-F")
+            .arg("#{window_name}:#{window_active}")
+            .output()
+            .expect("Failed to list tmux windows.");
+
+        let windows_output = String::from_utf8_lossy(&output.stdout);
+
+        windows_output
+            .lines()
+            .map(|line| {
+                let mut parts = line.split(':');
+                let name = parts.next().unwrap().to_string();
+                let active = parts.next().unwrap() == "1";
+                WindowNameAndStatus { name, active }
+            })
+            .collect()
     }
 }

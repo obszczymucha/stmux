@@ -102,4 +102,5 @@ pub(crate) enum Action {
         #[command(subcommand)]
         action: BookmarkAction,
     },
+    Status
 }

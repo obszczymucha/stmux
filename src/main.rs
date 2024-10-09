@@ -6,6 +6,7 @@ mod recent;
 mod session;
 mod session_name_file;
 mod sessions;
+mod status;
 mod tmux;
 mod utils;
 use std::collections::HashSet;
@@ -21,6 +22,7 @@ use recent::{Recent, RecentImpl};
 use session::{Session, SessionImpl};
 use session_name_file::{SessionNameFile, SessionNameFileImpl};
 use sessions::{Sessions, SessionsImpl};
+use status::{Status, StatusImpl};
 use tmux::{Tmux, TmuxImpl};
 
 fn run(config: &dyn Config, action: Action) {
@@ -223,8 +225,15 @@ fn run(config: &dyn Config, action: Action) {
                 let bookmarks = BookmarksImpl::new(&file);
 
                 bookmarks.edit(config, &TmuxImpl);
+                run(config, Action::Status);
             }
         },
+        Action::Status => {
+            let tmux = &TmuxImpl;
+            let file = SessionNameFileImpl::new(config.bookmarks_filename().as_str());
+            let status = StatusImpl::new(tmux, &file);
+            tmux.set_global("status-left", &status.get());
+        }
     }
 }
 
