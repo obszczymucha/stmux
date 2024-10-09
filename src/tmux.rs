@@ -392,7 +392,7 @@ impl Tmux for TmuxImpl {
                     .map(|i| format!(".{}", i))
                     .unwrap_or("".to_string())
             ))
-            .arg(format!("\"{}\"", keys))
+            .arg(keys)
             .arg("C-m")
             .status()
             .expect("Failed to send keys.");

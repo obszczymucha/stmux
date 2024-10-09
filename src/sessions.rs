@@ -42,12 +42,12 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
                 self.tmux.new_session(session_name, tmux_window, &command);
 
                 if command.is_none() {
-                    if let Some(startup_command) = tmux_window.shell_command_for_pane(i + 1) {
+                    if let Some(shell_command) = tmux_window.shell_command_for_pane(i + 1) {
                         self.tmux.send_keys(
                             session_name,
                             &tmux_window.name,
                             Some(1),
-                            &startup_command,
+                            &shell_command,
                         );
                     }
                 }
@@ -86,12 +86,12 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
                 self.tmux.new_window(session_name, tmux_window, i, &command);
 
                 if command.is_none() {
-                    if let Some(startup_command) = tmux_window.shell_command_for_pane(1) {
+                    if let Some(shell_command) = tmux_window.shell_command_for_pane(1) {
                         self.tmux.send_keys(
                             session_name,
                             &tmux_window.name,
                             Some(1),
-                            &startup_command,
+                            &shell_command,
                         );
                     }
                 }
