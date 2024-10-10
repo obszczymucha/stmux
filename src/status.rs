@@ -20,15 +20,15 @@ impl<'t, 'b, T: Tmux, B: SessionNameFile> Status for StatusImpl<'t, 'b, T, B> {
         fn current(session_name: &str, windows: &[WindowNameAndStatus]) -> String {
             format!(
                 "{}{} {}",
-                "#[fg=#e4e4e4]",
+                "#[fg=#8a60ab]",
                 session_name,
                 windows
                     .iter()
                     .map(|w| {
                         if w.active {
-                            format!("#[fg=#8a60ab]{}", w.name)
+                            format!("#[fg=#e0e0e0]{}", w.name)
                         } else {
-                            format!("#[fg=#a097aa]{}", w.name)
+                            format!("#[fg=#9797aa]{}", w.name)
                         }
                     })
                     .collect::<Vec<String>>()
