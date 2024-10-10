@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
+WINDOW_NAME=
+TMUX_USER=alien
 
-function build_and_release() {
-  echo "Building and releasing..." >&2
-  cargo build --release && cp config/nvim-config.lua "/home/alien/.config/stmux/" && cp target/release/stmux /usr/local/bin && su - alien -c 'tmux display-message " #[fg=#8a60ab]stmux #[default]released."'
+function build_and_install() {
+  echo "Building and installing..." >&2
+  ./install.sh
 }
 
 function listen() {
@@ -30,7 +32,7 @@ function on_change() {
   case "$event" in
     "CLOSE_WRITE,CLOSE")
       echo "File modified: $filename" >&2
-      build_and_release
+      build_and_install
       echo "Back to listening..." >&2
       ;;
     *)
@@ -38,9 +40,16 @@ function on_change() {
   esac
 }
 
+function cleanup() {
+  su - "$TMUX_USER" -c "tmux rename-window ""$WINDOW_NAME"" && tmux set automatic-rename on"
+}
+
 function main() {
+  WINDOW_NAME=$(su - "$TMUX_USER" -c "tmux display-message -p '#W'")
+  su - "$TMUX_USER" -c "tmux rename-window listener"
   listen
 }
 
+trap cleanup EXIT SIGINT
 main "$@"
 
