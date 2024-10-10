@@ -26,7 +26,7 @@ impl<'t, 'b, T: Tmux, B: SessionNameFile> Status for StatusImpl<'t, 'b, T, B> {
                     .iter()
                     .map(|w| {
                         if w.active {
-                            format!("#[fg=#e0e0e0]{}", w.name)
+                            format!("#[fg=#9797aa][#[fg=#e0e0e0]{}#[fg=#9797aa]]", w.name)
                         } else {
                             format!("#[fg=#9797aa]{}", w.name)
                         }
