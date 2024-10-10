@@ -6,7 +6,7 @@ use crate::{
 
 pub(crate) trait Bookmarks {
     fn print(&self);
-    fn set(&self, tmux: &dyn Tmux);
+    fn set(&self, tmux: &dyn Tmux) -> bool;
     fn select(&self, index: usize) -> Option<String>;
     fn edit(&self, config: &dyn Config, tmux: &dyn Tmux);
 }
@@ -30,13 +30,15 @@ impl<'s, S: SessionNameFile> Bookmarks for BookmarksImpl<'s, S> {
         }
     }
 
-    fn set(&self, tmux: &dyn Tmux) {
+    fn set(&self, tmux: &dyn Tmux) -> bool {
         let current_session_name = tmux.current_session_name();
         let bookmarks = self.bookmarks_file.read();
 
         if !bookmarks.contains(&current_session_name) {
             self.bookmarks_file.append(&current_session_name);
-            tmux.display_message("Session bookmarked.");
+            true
+        } else {
+            false
         }
     }
 

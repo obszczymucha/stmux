@@ -196,7 +196,9 @@ fn run(config: &dyn Config, action: Action) {
                 let file = SessionNameFileImpl::new(config.bookmarks_filename().as_str());
                 let bookmarks = BookmarksImpl::new(&file);
 
-                bookmarks.set(&tmux);
+                if bookmarks.set(&tmux) {
+                    run(config, Action::Status);
+                }
             }
             BookmarkAction::Select { index, smart_focus } => {
                 let file = SessionNameFileImpl::new(config.bookmarks_filename().as_str());
