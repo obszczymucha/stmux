@@ -54,6 +54,9 @@ pub(crate) enum SessionsAction {
         /// Filename to restore sessions from.
         filename: Option<String>,
     },
+    Convert {
+        filename: String,
+    }
 }
 
 #[derive(Subcommand, Debug)]

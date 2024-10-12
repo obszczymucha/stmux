@@ -135,6 +135,10 @@ fn run(config: &dyn Config, action: Action) {
                 let sessions = SessionsImpl::new(&file, &TmuxImpl);
                 sessions.restore_all();
             }
+            SessionsAction::Convert { filename } => {
+                let sessions = SessionsImpl::new(&config.sessions_filename(), &TmuxImpl);
+                sessions.convert(&filename);
+            }
         },
         Action::RecentSession { action } => match action {
             RecentSessionAction::Print => {
@@ -178,10 +182,14 @@ fn run(config: &dyn Config, action: Action) {
             RecentSessionAction::Add { session_name } => {
                 let tmux = &TmuxImpl;
                 let name = session_name.unwrap_or(tmux.current_session_name());
-                let file = SessionNameFileImpl::new(config.recent_sessions_filename().as_str());
-                let recent = RecentImpl::new(tmux, &file);
+                let recent_file =
+                    SessionNameFileImpl::new(config.recent_sessions_filename().as_str());
+                let recent = RecentImpl::new(tmux, &recent_file);
+                let sessions_file = config.sessions_filename();
+                let sessions = SessionsImpl::new(&sessions_file, &TmuxImpl).load();
+                let session = sessions.get(&name);
 
-                recent.add(&name);
+                recent.add(session, &name);
             }
         },
         Action::Bookmark { action } => match action {

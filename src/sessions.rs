@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fs, thread::sleep, time::Duration};
 
 use crate::{
-    model::{Layout, TmuxSessions, TmuxWindows},
+    model::{Layout, SessionName, TmuxSession, TmuxSessions, TmuxWindows},
     tmux::Tmux,
     utils,
 };
@@ -11,6 +11,7 @@ pub(crate) trait Sessions {
     fn restore_all(&self);
     fn restore(&self, session_name: &str) -> Option<bool>;
     fn load(&self) -> TmuxSessions;
+    fn convert(&self, output: &str);
 }
 
 pub(crate) struct SessionsImpl<'t, T: Tmux> {
@@ -164,8 +165,9 @@ impl<'t, T: Tmux> Sessions for SessionsImpl<'t, T> {
 
         let mut windows_to_layout = Vec::new();
 
-        for (name, windows) in sessions {
+        for (name, session) in sessions {
             let non_numeric = !utils::is_numeric(name.as_str());
+            let windows = session.windows;
 
             if !windows.is_empty() && non_numeric && !self.tmux.has_session(name.as_str()) {
                 self.process_session(name.as_str(), &windows, &mut windows_to_layout);
@@ -175,7 +177,7 @@ impl<'t, T: Tmux> Sessions for SessionsImpl<'t, T> {
         self.restore_layouts(&windows_to_layout, 300);
     }
 
-    fn load(&self) -> TmuxSessions {
+    fn load(&self) -> HashMap<SessionName, TmuxSession> {
         let file_content = fs::read_to_string(&self.filename);
 
         match file_content {
@@ -186,18 +188,51 @@ impl<'t, T: Tmux> Sessions for SessionsImpl<'t, T> {
         }
     }
 
-    // Returns whether the session was spawned in the background.
-    // Yeah, I know returning optional bool doesn't say shit. I'm lazy.
+    fn convert(&self, output: &str) {
+        let file_content = fs::read_to_string(&self.filename);
+
+        if let Ok(content) = file_content {
+            let old: HashMap<SessionName, TmuxWindows> =
+                toml::from_str(&content).unwrap_or_else(|error| {
+                    panic!("Failed to parse {}: {}.", &self.filename, error.message())
+                });
+
+            let new: HashMap<SessionName, TmuxSession> = old
+                .into_iter()
+                .map(|(name, windows)| {
+                    (
+                        name.clone(),
+                        TmuxSession {
+                            background: None,
+                            no_recent_tracking: None,
+                            windows,
+                        },
+                    )
+                })
+                .collect();
+
+            let toml_string =
+                toml::to_string(&new).expect("Failed to serialize sessions into TOML.");
+
+            fs::write(output, toml_string)
+                .unwrap_or_else(|_| panic!("Failed to write to {}.", &output));
+            eprintln!("TMUX sessions saved to {} file.", &output);
+        }
+    }
+
+    // The return bool value indicates whether the session was spawned in the background. Yeah, I
+    // know returning optional bool doesn't say shit. I'm lazy.
     fn restore(&self, session_name: &str) -> Option<bool> {
         let sessions = self.load();
 
-        sessions.get(session_name).map(|windows| {
+        sessions.get(session_name).map(|session| {
             let mut windows_to_layout = Vec::new();
+            let windows = &session.windows;
             self.process_session(session_name, windows, &mut windows_to_layout);
             self.restore_layouts(&windows_to_layout, 300);
 
             if !windows.is_empty() {
-                if let Some(background) = windows[0].background {
+                if let Some(background) = session.background {
                     return background;
                 }
             }

@@ -1,11 +1,15 @@
 use std::cmp::max;
 
 use crate::{
-    config::Config, model::WindowDimension, session_name_file::SessionNameFile, tmux::Tmux, utils,
+    config::Config,
+    model::{TmuxSession, WindowDimension},
+    session_name_file::SessionNameFile,
+    tmux::Tmux,
+    utils,
 };
 
 pub(crate) trait Recent {
-    fn add(&self, session_name: &str);
+    fn add(&self, session: Option<&TmuxSession>, session_name: &str);
     fn next(&self, session_name: &str) -> Option<String>;
     fn previous(&self, session_name: &str) -> Option<String>;
     fn print(&self);
@@ -27,9 +31,17 @@ impl<'t, 's, T: Tmux, S: SessionNameFile> RecentImpl<'t, 's, T, S> {
 }
 
 impl<'t, 's, T: Tmux, S: SessionNameFile> Recent for RecentImpl<'t, 's, T, S> {
-    fn add(&self, session_name: &str) {
+    fn add(&self, session: Option<&TmuxSession>, session_name: &str) {
         if utils::is_numeric(session_name) {
             return;
+        }
+
+        if let Some(session) = session {
+            if let Some(no_recent_tracking) = session.no_recent_tracking {
+                if no_recent_tracking {
+                    return;
+                }
+            }
         }
 
         let mut names: Vec<String> = vec![session_name.to_string()];
@@ -40,14 +52,16 @@ impl<'t, 's, T: Tmux, S: SessionNameFile> Recent for RecentImpl<'t, 's, T, S> {
     fn next(&self, session_name: &str) -> Option<String> {
         let recent_session_names = self.recent_session_file.read();
         let current_session_names = self.tmux.list_session_names();
-        let session_names = recent_session_names.into_iter().filter(|s| current_session_names.contains(s)).collect::<Vec<String>>();
-        
+        let session_names = recent_session_names
+            .into_iter()
+            .filter(|s| current_session_names.contains(s))
+            .collect::<Vec<String>>();
+
         if session_names.is_empty() {
             return None;
         }
 
-        if !session_names.contains(&session_name.to_string())
-        {
+        if !session_names.contains(&session_name.to_string()) {
             return Some(session_names[0].clone());
         }
 
@@ -61,8 +75,11 @@ impl<'t, 's, T: Tmux, S: SessionNameFile> Recent for RecentImpl<'t, 's, T, S> {
     fn previous(&self, session_name: &str) -> Option<String> {
         let recent_session_names = self.recent_session_file.read();
         let current_session_names = self.tmux.list_session_names();
-        let session_names = recent_session_names.into_iter().filter(|s| current_session_names.contains(s)).collect::<Vec<String>>();
-        
+        let session_names = recent_session_names
+            .into_iter()
+            .filter(|s| current_session_names.contains(s))
+            .collect::<Vec<String>>();
+
         if session_names.is_empty() {
             return None;
         }

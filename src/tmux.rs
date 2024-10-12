@@ -6,6 +6,7 @@ use mockall::automock;
 
 use crate::model::SessionName;
 use crate::model::TmuxPane;
+use crate::model::TmuxSession;
 use crate::model::TmuxSessions;
 use crate::model::TmuxWindow;
 use crate::model::WindowDimension;
@@ -101,7 +102,13 @@ impl Tmux for TmuxImpl {
 
         for name in sessions_output.lines().filter(|s| !utils::is_numeric(s)) {
             let windows = self.list_windows(name);
-            sessions.insert(name.to_string(), windows);
+            let session = TmuxSession {
+                background: None,
+                no_recent_tracking: None,
+                windows,
+            };
+
+            sessions.insert(name.to_string(), session);
         }
 
         sessions
@@ -149,7 +156,7 @@ impl Tmux for TmuxImpl {
                     name: window_name.to_string(),
                     layout: layout.to_string(),
                     panes: vec![pane],
-                    background: None,
+                    active: None,
                 };
 
                 windows.push(window);
