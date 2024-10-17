@@ -7,7 +7,7 @@ use std::{
     thread,
 };
 
-use crate::model::SessionName;
+use crate::model::{SessionName, TmuxSession};
 use crate::sessions::Sessions;
 use crate::tmux::Tmux;
 
@@ -16,10 +16,9 @@ const FZF_DEFAULT_OPTS: &str = "--bind=alt-q:close,alt-j:down,alt-k:up,alt-u:pag
 pub(crate) trait Session {
     fn find(&self, session_names: Vec<SessionName>, title: &str);
     fn select(&self, name: &str, sessions: &dyn Sessions);
-    fn save(&self);
-    fn reset(&self);
-    fn set_startup(&self, command: &str);
-    fn delete_startup(&self);
+    fn save(&self, sessions: &dyn Sessions);
+    fn delete(&self, session_name: &str, sessions: &dyn Sessions);
+    fn update(&self, session_name: &str, session: TmuxSession, sessions: &dyn Sessions);
 }
 
 pub(crate) struct SessionImpl<'t, T: Tmux> {
@@ -123,19 +122,19 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
         }
     }
 
-    fn save(&self) {
+    fn save(&self, sessions: &dyn Sessions) {
         unimplemented!()
     }
 
-    fn reset(&self) {
-        unimplemented!()
+    fn delete(&self, session_name: &str, sessions: &dyn Sessions) {
+        let mut stored_sessions = sessions.load();
+        stored_sessions.remove(session_name);
+        sessions.save(stored_sessions);
     }
 
-    fn set_startup(&self, command: &str) {
-        eprintln!("TODO: set_startup({})", command);
-    }
-
-    fn delete_startup(&self) {
-        eprintln!("TODO: delete_startup()");
+    fn update(&self, session_name: &str, session: TmuxSession, sessions: &dyn Sessions) {
+        let mut stored_sessions = sessions.load();
+        stored_sessions.insert(session_name.to_string(), session);
+        sessions.save(stored_sessions);
     }
 }

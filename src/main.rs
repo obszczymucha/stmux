@@ -18,6 +18,7 @@ use args::{
 use bookmarks::{Bookmarks, BookmarksImpl};
 use clap::Parser;
 use config::Config;
+use model::{TmuxPane, TmuxWindow};
 use recent::{Recent, RecentImpl};
 use session::{Session, SessionImpl};
 use session_name_file::{SessionNameFile, SessionNameFileImpl};
@@ -107,33 +108,111 @@ fn run(config: &dyn Config, action: Action) {
                 session.select(session_name.as_str(), &sessions);
             }
             SessionAction::Save => {
-                let session = SessionImpl::new(&TmuxImpl);
-                session.save();
+                let tmux = TmuxImpl;
+                let session = SessionImpl::new(&tmux);
+                let sessions = SessionsImpl::new(config.sessions_filename().as_str(), &tmux);
+                session.save(&sessions);
             }
-            SessionAction::Reset => {
-                let session = SessionImpl::new(&TmuxImpl);
-                session.reset();
+            SessionAction::Delete { session_name } => {
+                let tmux = TmuxImpl;
+                let session = SessionImpl::new(&tmux);
+                let sessions = SessionsImpl::new(&config.sessions_filename(), &tmux);
+                session.delete(&session_name, &sessions);
             }
-            SessionAction::Startup { command, delete } => {
-                let session = SessionImpl::new(&TmuxImpl);
+            SessionAction::Update {
+                session_name,
+                background,
+                no_recent_tracking,
+                window_active,
+                pane_active,
+                startup_command,
+                shell_command,
+            } => {
+                let tmux = TmuxImpl;
+                let session = SessionImpl::new(&tmux);
+                let sessions = SessionsImpl::new(&config.sessions_filename(), &tmux);
 
-                if delete {
-                    session.delete_startup();
-                } else if let Some(command) = command {
-                    session.set_startup(&command);
+                if let Some(s) = sessions.load().get(&session_name) {
+                    let mut sess = s.clone();
+
+                    if background {
+                        sess.background = Some(true);
+                    }
+
+                    if no_recent_tracking {
+                        sess.no_recent_tracking = Some(true);
+                    }
+
+                    let window_index = tmux.current_window_index();
+                    let pane_index = tmux.current_window_index();
+
+                    if window_active {
+                        for window in sess.windows.iter_mut() {
+                            window.active = Some(window.index == window_index);
+                        }
+                    }
+
+                    if pane_active {
+                        let window: Option<&mut TmuxWindow> =
+                            sess.windows.iter_mut().find(|w| w.index == window_index);
+                        if let Some(window) = window {
+                            for pane in window.panes.iter_mut() {
+                                pane.active = pane.index == pane_index;
+                            }
+                        }
+                    }
+
+                    if let Some(startup_command) = startup_command {
+                        let window: Option<&mut TmuxWindow> =
+                            sess.windows.iter_mut().find(|w| w.index == window_index);
+                        let pane: Option<&mut TmuxPane> =
+                            window.and_then(|w| w.panes.iter_mut().find(|p| p.index == pane_index));
+
+                        if let Some(pane) = pane {
+                            pane.startup_command = Some(startup_command);
+                        }
+                    }
+
+                    if let Some(shell_command) = shell_command {
+                        let window: Option<&mut TmuxWindow> =
+                            sess.windows.iter_mut().find(|w| w.index == window_index);
+                        let pane: Option<&mut TmuxPane> =
+                            window.and_then(|w| w.panes.iter_mut().find(|p| p.index == pane_index));
+
+                        if let Some(pane) = pane {
+                            pane.shell_command = Some(shell_command);
+                        }
+                    }
+
+                    eprintln!("{:?}", sess);
+                    session.update(&session_name, sess, &sessions);
                 }
             }
         },
         Action::Sessions { action } => match action {
             SessionsAction::Save { filename } => {
+                let tmux = TmuxImpl;
                 let file = filename.unwrap_or(config.sessions_filename());
-                let sessions = SessionsImpl::new(&file, &TmuxImpl);
-                sessions.save();
+                let sessions = SessionsImpl::new(&file, &tmux);
+                let stored_sessions = sessions.load();
+                let current_sessions = tmux.list_sessions();
+                let merged_sessions = utils::merge(stored_sessions, current_sessions);
+
+                sessions.save(merged_sessions);
             }
+
             SessionsAction::Restore { filename } => {
                 let file = filename.unwrap_or(config.sessions_filename());
                 let sessions = SessionsImpl::new(&file, &TmuxImpl);
                 sessions.restore_all();
+            }
+            SessionsAction::List => {
+                let file = config.sessions_filename();
+                let sessions = SessionsImpl::new(&file, &TmuxImpl);
+
+                for session_name in sessions.list() {
+                    eprintln!("{}", session_name);
+                }
             }
             SessionsAction::Convert { filename } => {
                 let sessions = SessionsImpl::new(&config.sessions_filename(), &TmuxImpl);
@@ -141,7 +220,7 @@ fn run(config: &dyn Config, action: Action) {
             }
         },
         Action::RecentSession { action } => match action {
-            RecentSessionAction::Print => {
+            RecentSessionAction::List => {
                 let file = SessionNameFileImpl::new(config.recent_sessions_filename().as_str());
                 let recent = RecentImpl::new(&TmuxImpl, &file);
 
@@ -193,7 +272,7 @@ fn run(config: &dyn Config, action: Action) {
             }
         },
         Action::Bookmark { action } => match action {
-            BookmarkAction::Print => {
+            BookmarkAction::List => {
                 let file = SessionNameFileImpl::new(config.bookmarks_filename().as_str());
                 let bookmarks = BookmarksImpl::new(&file);
 

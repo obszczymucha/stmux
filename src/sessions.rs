@@ -7,10 +7,11 @@ use crate::{
 };
 
 pub(crate) trait Sessions {
-    fn save(&self);
+    fn save(&self, sessions: TmuxSessions);
     fn restore_all(&self);
     fn restore(&self, session_name: &str) -> Option<bool>;
     fn load(&self) -> TmuxSessions;
+    fn list(&self) -> Vec<SessionName>;
     fn convert(&self, output: &str);
 }
 
@@ -146,10 +147,7 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
 }
 
 impl<'t, T: Tmux> Sessions for SessionsImpl<'t, T> {
-    fn save(&self) {
-        let stored_sessions = self.load();
-        let current_sessions = self.tmux.list_sessions();
-        let sessions = merge(stored_sessions, current_sessions);
+    fn save(&self, sessions: TmuxSessions) {
         let toml_string =
             toml::to_string(&sessions).expect("Failed to serialize sessions into TOML.");
 
@@ -188,6 +186,27 @@ impl<'t, T: Tmux> Sessions for SessionsImpl<'t, T> {
         }
     }
 
+    // The return bool value indicates whether the session was spawned in the background. Yeah, I
+    // know returning optional bool doesn't say shit. I'm lazy.
+    fn restore(&self, session_name: &str) -> Option<bool> {
+        let sessions = self.load();
+
+        sessions.get(session_name).map(|session| {
+            let mut windows_to_layout = Vec::new();
+            let windows = &session.windows;
+            self.process_session(session_name, windows, &mut windows_to_layout);
+            self.restore_layouts(&windows_to_layout, 300);
+
+            if !windows.is_empty() {
+                if let Some(background) = session.background {
+                    return background;
+                }
+            }
+
+            false
+        })
+    }
+
     fn convert(&self, output: &str) {
         let file_content = fs::read_to_string(&self.filename);
 
@@ -220,40 +239,19 @@ impl<'t, T: Tmux> Sessions for SessionsImpl<'t, T> {
         }
     }
 
-    // The return bool value indicates whether the session was spawned in the background. Yeah, I
-    // know returning optional bool doesn't say shit. I'm lazy.
-    fn restore(&self, session_name: &str) -> Option<bool> {
-        let sessions = self.load();
+    fn list(&self) -> Vec<SessionName> {
+        let file_content = fs::read_to_string(&self.filename);
 
-        sessions.get(session_name).map(|session| {
-            let mut windows_to_layout = Vec::new();
-            let windows = &session.windows;
-            self.process_session(session_name, windows, &mut windows_to_layout);
-            self.restore_layouts(&windows_to_layout, 300);
+        match file_content {
+            Ok(content) => {
+                let sessions: HashMap<SessionName, TmuxSession> = toml::from_str(&content)
+                    .unwrap_or_else(|error| {
+                        panic!("Failed to parse {}: {}.", &self.filename, error.message())
+                    });
 
-            if !windows.is_empty() {
-                if let Some(background) = session.background {
-                    return background;
-                }
+                sessions.keys().cloned().collect()
             }
-
-            false
-        })
-    }
-}
-
-fn merge(config_sessions: TmuxSessions, current_sessions: TmuxSessions) -> TmuxSessions {
-    let mut sessions = HashMap::new();
-
-    for (name, windows) in config_sessions {
-        sessions.insert(name, windows);
-    }
-
-    for (name, windows) in current_sessions {
-        if !sessions.contains_key(name.as_str()) {
-            sessions.insert(name, windows);
+            Err(_) => Vec::new(),
         }
     }
-
-    sessions
 }

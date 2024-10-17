@@ -64,6 +64,8 @@ pub(crate) trait Tmux {
     );
     fn window_dimension(&self) -> Option<WindowDimension>;
     fn set_global(&self, option_name: &str, value: &str);
+    fn current_window_index(&self) -> usize;
+    fn current_pane_index(&self) -> usize;
 }
 
 pub(crate) struct TmuxImpl;
@@ -458,5 +460,29 @@ impl Tmux for TmuxImpl {
                 WindowNameAndStatus { name, active }
             })
             .collect()
+    }
+
+    fn current_window_index(&self) -> usize {
+        let output = Command::new("tmux")
+            .arg("display-message")
+            .arg("-p")
+            .arg("#I")
+            .output()
+            .expect("Failed to get current window index.");
+
+        let id = String::from_utf8_lossy(&output.stdout);
+        id.trim().parse().expect("Failed to parse window index.")
+    }
+
+    fn current_pane_index(&self) -> usize {
+        let output = Command::new("tmux")
+            .arg("display-message")
+            .arg("-p")
+            .arg("#P")
+            .output()
+            .expect("Failed to get current pane index.");
+
+        let id = String::from_utf8_lossy(&output.stdout);
+        id.trim().parse().expect("Failed to parse pane index.")
     }
 }
