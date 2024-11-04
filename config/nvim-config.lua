@@ -25,21 +25,27 @@ vim.keymap.set( "n", "<A-k>", "k", { silent = true } )
 vim.keymap.set( "n", ":", function() end, { silent = true } )
 vim.keymap.set( "n", "`", function() end, { silent = true } )
 
+local function safe_line_up()
+  if vim.fn.line( '.' ) > 1 then
+    vim.cmd( "silent! m .-2" )
+    vim.cmd( "silent! normal! ==" )
+  end
+end
+
+local function safe_line_down()
+  if vim.fn.line( '.' ) < vim.fn.line( '$' ) then
+    vim.cmd( "silent! m .+1" )
+    vim.cmd( "silent! normal! ==" )
+  end
+end
+
 if is_wsl then
   -- Alacritty doesn't want to send Ctrl+Alt, so the only way is to use AHK.
   -- AHK is sending ^[[1;5R for <C-A-j> and ^[[1;5S for <C-A-k>.
   -- These map to <C-F3> (F27) and <C-F4> (F28) respectively.
-  vim.keymap.set( "n", "<F27>", "<cmd>m .+1<CR>==" )
-  vim.keymap.set( "n", "<F28>", "<cmd>m .-2<CR>==" )
-  vim.keymap.set( "i", "<F27>", "<Esc><cmd>m .+1<CR>==gi" )
-  vim.keymap.set( "i", "<F28>", "<Esc><cmd>m .-2<CR>==gi" )
-  vim.keymap.set( "v", "<F27>", ":m '>+1<CR>gv=gv" )
-  vim.keymap.set( "v", "<F28>", ":m '<-2<CR>gv=gv" )
+  vim.keymap.set( "n", "<F27>", safe_line_down )
+  vim.keymap.set( "n", "<F28>", safe_line_up )
 else
-  vim.keymap.set( "n", "<C-A-j>", "<cmd>m .+1<CR>==" )
-  vim.keymap.set( "n", "<C-A-k>", "<cmd>m .-2<CR>==" )
-  vim.keymap.set( "i", "<C-A-j>", "<Esc><cmd>m .+1<CR>==gi" )
-  vim.keymap.set( "i", "<C-A-k>", "<Esc><cmd>m .-2<CR>==gi" )
-  vim.keymap.set( "v", "<C-A-j>", ":m '>+1<CR>gv=gv" )
-  vim.keymap.set( "v", "<C-A-k>", ":m '<-2<CR>gv=gv" )
+  vim.keymap.set( "n", "<C-A-j>", safe_line_down )
+  vim.keymap.set( "n", "<C-A-k>", safe_line_up )
 end
