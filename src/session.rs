@@ -122,7 +122,7 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
         }
     }
 
-    fn save(&self, sessions: &dyn Sessions) {
+    fn save(&self, _: &dyn Sessions) {
         unimplemented!()
     }
 

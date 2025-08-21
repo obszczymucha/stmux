@@ -1,4 +1,4 @@
-use crate::{model::WindowNameAndStatus, session_name_file::SessionNameFile, tmux::Tmux};
+use crate::{model::WindowDetails, session_name_file::SessionNameFile, tmux::Tmux};
 
 pub(crate) trait Status {
     fn get(&self) -> String;
@@ -17,7 +17,7 @@ impl<'t, 'b, T: Tmux, B: SessionNameFile> StatusImpl<'t, 'b, T, B> {
 
 impl<'t, 'b, T: Tmux, B: SessionNameFile> Status for StatusImpl<'t, 'b, T, B> {
     fn get(&self) -> String {
-        fn current(session_name: &str, windows: &[WindowNameAndStatus]) -> String {
+        fn current(session_name: &str, windows: &[WindowDetails]) -> String {
             format!(
                 "{}{} {}",
                 "#[fg=#8a60ab]",
@@ -26,7 +26,11 @@ impl<'t, 'b, T: Tmux, B: SessionNameFile> Status for StatusImpl<'t, 'b, T, B> {
                     .iter()
                     .map(|w| {
                         if w.active {
-                            format!("#[fg=#9797aa][#[fg=#e0e0e0]{}#[fg=#9797aa]]", w.name)
+                            if let Some(pane_window_name) = &w.pane_window_name {
+                                format!("#[fg=#9797aa][#[fg=#e0e0e0]{}#[fg=#9797aa]|#[fg=#d0d0d0]{}#[fg=#9797aa]]", w.name, pane_window_name)
+                            } else {
+                                format!("#[fg=#9797aa][#[fg=#e0e0e0]{}#[fg=#9797aa]]", w.name)
+                            }
                         } else {
                             format!("#[fg=#9797aa]{}", w.name)
                         }

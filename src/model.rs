@@ -17,7 +17,7 @@ pub(crate) struct TmuxWindow {
     pub(crate) name: WindowName,
     pub(crate) layout: String,
     pub(crate) panes: Vec<TmuxPane>,
-    pub(crate) active: Option<bool>
+    pub(crate) active: Option<bool>,
 }
 
 pub(crate) type WindowName = String;
@@ -53,9 +53,10 @@ pub(crate) struct Layout {
     pub(crate) layout: String,
 }
 
-pub(crate) struct WindowNameAndStatus {
+pub(crate) struct WindowDetails {
     pub(crate) name: WindowName,
     pub(crate) active: bool,
+    pub(crate) pane_window_name: Option<String>,
 }
 
 impl TmuxWindow {

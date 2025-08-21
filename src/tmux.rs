@@ -9,9 +9,9 @@ use crate::model::TmuxPane;
 use crate::model::TmuxSession;
 use crate::model::TmuxSessions;
 use crate::model::TmuxWindow;
+use crate::model::WindowDetails;
 use crate::model::WindowDimension;
 use crate::model::WindowName;
-use crate::model::WindowNameAndStatus;
 use crate::utils;
 
 #[automock]
@@ -19,7 +19,7 @@ pub(crate) trait Tmux {
     fn list_session_names(&self) -> Vec<SessionName>;
     fn list_sessions(&self) -> TmuxSessions;
     fn list_windows(&self, session_name: &str) -> Vec<TmuxWindow>;
-    fn list_windows_names_with_status(&self) -> Vec<WindowNameAndStatus>;
+    fn list_windows_names_with_status(&self) -> Vec<WindowDetails>;
     fn new_session(
         &self,
         session_name: &str,
@@ -65,7 +65,7 @@ pub(crate) trait Tmux {
     fn window_dimension(&self) -> Option<WindowDimension>;
     fn set_global(&self, option_name: &str, value: &str);
     fn current_window_index(&self) -> usize;
-    fn current_pane_index(&self) -> usize;
+    fn get_pane_option(&self, pane_index: usize, option_name: &str) -> Option<String>;
 }
 
 pub(crate) struct TmuxImpl;
@@ -441,11 +441,11 @@ impl Tmux for TmuxImpl {
             .expect("Failed to set global option.");
     }
 
-    fn list_windows_names_with_status(&self) -> Vec<WindowNameAndStatus> {
+    fn list_windows_names_with_status(&self) -> Vec<WindowDetails> {
         let output = Command::new("tmux")
             .arg("list-windows")
             .arg("-F")
-            .arg("#{window_name}:#{window_active}")
+            .arg("#{window_name}:#{window_active}:#{window_panes}")
             .output()
             .expect("Failed to list tmux windows.");
 
@@ -457,7 +457,19 @@ impl Tmux for TmuxImpl {
                 let mut parts = line.split(':');
                 let name = parts.next().unwrap().to_string();
                 let active = parts.next().unwrap() == "1";
-                WindowNameAndStatus { name, active }
+                let pane_count = parts.next().unwrap().parse::<usize>().ok().unwrap();
+
+                let pane_window_name = if pane_count > 1 {
+                    self.get_pane_option(2, "@window-name")
+                } else {
+                    None
+                };
+
+                WindowDetails {
+                    name,
+                    active,
+                    pane_window_name,
+                }
             })
             .collect()
     }
@@ -474,15 +486,24 @@ impl Tmux for TmuxImpl {
         id.trim().parse().expect("Failed to parse window index.")
     }
 
-    fn current_pane_index(&self) -> usize {
-        let output = Command::new("tmux")
-            .arg("display-message")
+    fn get_pane_option(&self, pane_index: usize, option_name: &str) -> Option<String> {
+        let window_name = Command::new("tmux")
+            .arg("show-option")
+            .arg("-t")
+            .arg(pane_index.to_string())
             .arg("-p")
-            .arg("#P")
+            .arg("-v")
+            .arg(option_name)
             .output()
-            .expect("Failed to get current pane index.");
+            .expect("Failed to get @window-name");
 
-        let id = String::from_utf8_lossy(&output.stdout);
-        id.trim().parse().expect("Failed to parse pane index.")
+        let result = String::from_utf8_lossy(&window_name.stdout);
+        let trimmed = result.trim();
+
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
     }
 }
