@@ -34,7 +34,8 @@ impl<'t, T: Tmux> WindowImpl<'t, T> {
 
         if pane.startup_command.is_none() {
             if let Some(shell_command) = &pane.shell_command {
-                self.tmux.send_keys(None, pane_count, shell_command);
+                self.tmux
+                    .send_keys_to_current_window(pane_count, shell_command);
             }
         }
 
@@ -76,8 +77,11 @@ impl<'t, T: Tmux> Window for WindowImpl<'t, T> {
 
             if pane_window_names.len() == 1 {
                 let pane_index = self.split_window(pane);
-                self.tmux
-                    .set_pane_option(None, pane_index, "@window-name", session_name);
+                self.tmux.set_pane_option_for_current_window(
+                    pane_index,
+                    "@window-name",
+                    session_name,
+                );
                 return;
             }
 

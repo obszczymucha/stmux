@@ -3,7 +3,6 @@ use std::process::Stdio;
 
 use mockall::automock;
 
-use crate::model::SessionAndWindowName;
 use crate::model::TmuxWindow;
 use crate::model::WindowDetails;
 use crate::model::WindowDimension;
@@ -63,24 +62,22 @@ pub(crate) trait Tmux {
         startup_command: &Option<String>,
     );
     fn select_layout(&self, session_name: &str, window_name: &str, layout: &str);
-    fn send_keys(
-        &self,
-        session_and_window_name: Option<SessionAndWindowName>,
-        pane_index: usize,
-        keys: &str,
-    );
+    fn send_keys_to_current_window(&self, pane_index: usize, keys: &str);
+    fn send_keys(&self, session_name: &str, window_name: &str, pane_index: usize, keys: &str);
     fn window_dimension(&self) -> Option<WindowDimension>;
     fn set_global(&self, option_name: &str, value: &str);
     fn current_window_index(&self) -> usize;
     fn get_pane_option(&self, pane_index: usize, option_name: &str) -> Option<String>;
     fn count_panes(&self) -> usize;
-    fn set_pane_option(
-        &self,
-        session_and_window_name: Option<SessionAndWindowName>,
-        pane_index: usize,
-        name: &str,
-        value: &str,
-    );
+    fn set_pane_option_for_current_window(&self, pane_index: usize, name: &str, value: &str);
+    // fn set_pane_option(
+    //     &self,
+    //     session_name: &str,
+    //     window_name: &str,
+    //     pane_index: usize,
+    //     name: &str,
+    //     value: &str,
+    // );
 }
 
 pub(crate) struct TmuxImpl;
@@ -114,6 +111,37 @@ impl TmuxImpl {
         }
 
         command.status().expect("Failed to split a window.");
+    }
+
+    fn send_keys<F>(&self, keys: &str, decorator_fn: F)
+    where
+        F: FnOnce(&mut Command),
+    {
+        let mut command = Command::new("tmux");
+        command.arg("send-keys");
+        decorator_fn(&mut command);
+
+        command
+            .arg(keys)
+            .arg("C-m")
+            .status()
+            .expect("Failed to send keys.");
+    }
+
+    fn set_pane_option<F>(&self, name: &str, value: &str, decorator_fn: F)
+    where
+        F: FnOnce(&mut Command),
+    {
+        let mut command = Command::new("tmux");
+        command.arg("set").arg("-p");
+
+        decorator_fn(&mut command);
+
+        command
+            .arg(name)
+            .arg(value)
+            .status()
+            .expect("Failed to get the count of window panes.");
     }
 }
 
@@ -374,25 +402,22 @@ impl Tmux for TmuxImpl {
             .expect("Failed to select window layout.");
     }
 
-    fn send_keys(
-        &self,
-        session_and_window_name: Option<SessionAndWindowName>,
-        pane_index: usize,
-        keys: &str,
-    ) {
-        let prefix = match session_and_window_name {
-            Some(s) => format!("{}:{}", s.session_name, s.window_name),
-            None => "".to_string(),
+    fn send_keys_to_current_window(&self, pane_index: usize, keys: &str) {
+        let decorator = |command: &mut Command| {
+            command.arg("-t").arg(format!(".{}", pane_index));
         };
 
-        Command::new("tmux")
-            .arg("send-keys")
-            .arg("-t")
-            .arg(format!("{}.{}", prefix, pane_index))
-            .arg(keys)
-            .arg("C-m")
-            .status()
-            .expect("Failed to send keys.");
+        self.send_keys(keys, decorator);
+    }
+
+    fn send_keys(&self, session_name: &str, window_name: &str, pane_index: usize, keys: &str) {
+        let decorator = |command: &mut Command| {
+            command
+                .arg("-t")
+                .arg(format!("{}:{}.{}", session_name, window_name, pane_index));
+        };
+
+        self.send_keys(keys, decorator);
     }
 
     fn window_dimension(&self) -> Option<WindowDimension> {
@@ -504,26 +529,28 @@ impl Tmux for TmuxImpl {
         id.trim().parse().expect("Failed to parse pane count.")
     }
 
-    fn set_pane_option(
-        &self,
-        session_and_window_name: Option<SessionAndWindowName>,
-        pane_index: usize,
-        name: &str,
-        value: &str,
-    ) {
-        let prefix = match session_and_window_name {
-            Some(s) => format!("{}:{}", s.session_name, s.window_name),
-            None => "".to_string(),
+    fn set_pane_option_for_current_window(&self, pane_index: usize, name: &str, value: &str) {
+        let decorator = |command: &mut Command| {
+            command.arg("-t").arg(format!(".{}", pane_index));
         };
 
-        Command::new("tmux")
-            .arg("set")
-            .arg("-p")
-            .arg("-t")
-            .arg(format!("{}.{}", prefix, pane_index))
-            .arg(name)
-            .arg(value)
-            .status()
-            .expect("Failed to get the count of window panes.");
+        self.set_pane_option(name, value, decorator);
     }
+
+    // fn set_pane_option(
+    //     &self,
+    //     session_name: &str,
+    //     window_name: &str,
+    //     pane_index: usize,
+    //     name: &str,
+    //     value: &str,
+    // ) {
+    //     let decorator = |command: &mut Command| {
+    //         command
+    //             .arg("-t")
+    //             .arg(format!("{}:{}.{}", session_name, window_name, pane_index));
+    //     };
+    //
+    //     self.set_pane_option(name, value, decorator);
+    // }
 }
