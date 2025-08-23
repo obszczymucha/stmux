@@ -1,7 +1,13 @@
-use crate::{model::WindowDetails, session_name_file::SessionNameFile, tmux::Tmux};
+use crate::{
+    model::WindowDetails,
+    session_name_file::SessionNameFile,
+    tmux::Tmux,
+    window::{Window, WindowImpl},
+};
 
 pub(crate) trait Status {
     fn get(&self) -> String;
+    fn set(&self);
 }
 
 pub(crate) struct StatusImpl<'t, 'b, T: Tmux, B: SessionNameFile> {
@@ -41,7 +47,8 @@ impl<'t, 'b, T: Tmux, B: SessionNameFile> Status for StatusImpl<'t, 'b, T, B> {
         }
 
         let session_name = self.tmux.current_session_name();
-        let windows = self.tmux.list_windows_names_with_status();
+        let window = WindowImpl::new(self.tmux);
+        let windows = window.list_names_with_status_for_current_session();
         let bookmarks = self.bookmarks.read();
         let bookmark_names = bookmarks
             .iter()
@@ -85,5 +92,9 @@ impl<'t, 'b, T: Tmux, B: SessionNameFile> Status for StatusImpl<'t, 'b, T, B> {
             },
             bookmark_names
         )
+    }
+
+    fn set(&self) {
+        self.tmux.set_global("status-left", &self.get());
     }
 }

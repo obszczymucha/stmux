@@ -29,7 +29,8 @@ pub(crate) struct TmuxPane {
     pub(crate) active: bool,
     pub(crate) startup_command: Option<String>,
     pub(crate) shell_command: Option<String>,
-    pub(crate) environment: Option<Vec<EnvironmentVariable>>,
+    #[serde(default)]
+    pub(crate) environment: Vec<EnvironmentVariable>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -60,19 +61,12 @@ pub(crate) struct WindowDetails {
 }
 
 impl TmuxWindow {
+    /// `index` is 1-based (tmux style)
     pub(crate) fn startup_command_for_pane(&self, index: usize) -> Option<String> {
         if self.panes.is_empty() {
             None
         } else {
             self.panes[index - 1].startup_command.clone()
-        }
-    }
-
-    pub(crate) fn shell_command_for_pane(&self, index: usize) -> Option<String> {
-        if self.panes.is_empty() {
-            None
-        } else {
-            self.panes[index - 1].shell_command.clone()
         }
     }
 }

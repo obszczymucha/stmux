@@ -1,37 +1,48 @@
-use std::collections::HashMap;
 use std::process::Command;
 use std::process::Stdio;
 
 use mockall::automock;
 
-use crate::model::SessionName;
-use crate::model::TmuxPane;
-use crate::model::TmuxSession;
-use crate::model::TmuxSessions;
+use crate::model::EnvironmentVariable;
 use crate::model::TmuxWindow;
-use crate::model::WindowDetails;
 use crate::model::WindowDimension;
-use crate::model::WindowName;
-use crate::utils;
+
+// Note to myself:
+// Should this be dum and just expose tmux cli api?
+// Right now there's a mixture of logic and the above.
+// Dunno yet. Going towards this being just a cli and
+// other structs like Window/Session use this for more
+// sophisticated logic.
 
 #[automock]
 pub(crate) trait Tmux {
-    fn list_session_names(&self) -> Vec<SessionName>;
-    fn list_sessions(&self) -> TmuxSessions;
-    fn list_windows(&self, session_name: &str) -> Vec<TmuxWindow>;
-    fn list_windows_names_with_status(&self) -> Vec<WindowDetails>;
+    fn list_sessions(&self, format: &str) -> Vec<String>;
+    fn list_session_panes(&self, session_name: &str, format: &str) -> Vec<String>;
+    fn list_current_window_panes(&self, format: &str) -> Vec<String>;
+    fn list_windows_for_current_session(&self, format: &str) -> Vec<String>;
+    // fn list_windows_names_with_status(&self) -> Vec<WindowDetails>;
     fn new_session(
         &self,
         session_name: &str,
         tmux_window: &TmuxWindow,
         startup_command: &Option<String>,
     );
+    fn new_window_in_current_session(
+        &self,
+        window_name: &str,
+        path: &str,
+        environment: &[EnvironmentVariable],
+        startup_command: &Option<String>,
+        background: bool,
+    );
     fn new_window(
         &self,
         session_name: &str,
-        tmux_window: &TmuxWindow,
-        i: usize,
+        window_name: &str,
+        path: &str,
+        environment: &[EnvironmentVariable],
         startup_command: &Option<String>,
+        background: bool,
     );
     fn has_session(&self, session_name: &str) -> bool;
     fn select_window(&self, session_name: &str, index: usize);
@@ -47,127 +58,182 @@ pub(crate) trait Tmux {
         y: &Option<usize>,
         command: &str,
     );
+    fn split_current_window(
+        &self,
+        horizontally: bool,
+        path: &str,
+        startup_command: &Option<String>,
+    );
     fn split_window(
         &self,
         session_name: &str,
         window_name: &str,
+        horizontally: bool,
         path: &str,
         startup_command: &Option<String>,
     );
     fn select_layout(&self, session_name: &str, window_name: &str, layout: &str);
-    fn send_keys(
-        &self,
-        session_name: &str,
-        window_name: &str,
-        pane_index: Option<usize>,
-        keys: &str,
-    );
+    fn send_keys_to_current_window(&self, pane_index: usize, keys: &str);
+    fn send_keys(&self, session_name: &str, window_name: &str, pane_index: usize, keys: &str);
     fn window_dimension(&self) -> Option<WindowDimension>;
     fn set_global(&self, option_name: &str, value: &str);
     fn current_window_index(&self) -> usize;
     fn get_pane_option(&self, pane_index: usize, option_name: &str) -> Option<String>;
+    fn count_panes(&self) -> usize;
+    fn set_pane_option_for_current_window(&self, pane_index: usize, name: &str, value: &str);
+    // fn set_pane_option(
+    //     &self,
+    //     session_name: &str,
+    //     window_name: &str,
+    //     pane_index: usize,
+    //     name: &str,
+    //     value: &str,
+    // );
+
+    fn swap_panes(
+        &self,
+        source_pane_index: usize,
+        target_window_name: &str,
+        target_pane_index: usize,
+    );
+    fn rename_window_in_current_session(&self, old_name: &str, new_name: &str);
 }
 
 pub(crate) struct TmuxImpl;
 
-impl Tmux for TmuxImpl {
-    fn list_session_names(&self) -> Vec<SessionName> {
-        let output = Command::new("tmux")
-            .arg("list-sessions")
-            .output()
-            .expect("Failed to list tmux sessions.");
+impl TmuxImpl {
+    fn new_window<F>(
+        &self,
+        window_name: &str,
+        path: &str,
+        environment: &[EnvironmentVariable],
+        startup_command: &Option<String>,
+        decorator_fn: F,
+    ) where
+        F: FnOnce(&mut Command),
+    {
+        let mut command = Command::new("tmux");
+        command.arg("new-window");
 
-        let sessions_output = String::from_utf8_lossy(&output.stdout);
-        let mut session_names = Vec::new();
-        for session in sessions_output.lines() {
-            if let Some((name, _)) = session
-                .split_once(':')
-                .filter(|(name, _)| !utils::is_numeric(name))
-            {
-                session_names.push(name.to_string());
-            }
+        decorator_fn(&mut command);
+
+        command.arg("-n").arg(window_name).arg("-e").arg("NO_CD=1");
+        command.arg("-c").arg(path);
+
+        for env in environment.iter() {
+            command.arg("-e").arg(format!("{}={}", env.name, env.value));
         }
 
-        session_names
+        if let Some(program) = startup_command {
+            command.arg(program);
+        }
+
+        command.status().expect("Failed to create new session.");
     }
 
-    fn list_sessions(&self) -> TmuxSessions {
+    fn split_window<F>(
+        &self,
+        horizontally: bool,
+        path: &str,
+        decorator_fn: F,
+        startup_command: &Option<String>,
+    ) where
+        F: FnOnce(&mut Command),
+    {
+        let mut command = Command::new("tmux");
+        command.arg("split-window");
+
+        if horizontally {
+            command.arg("-h");
+        } else {
+            command.arg("-v");
+        }
+
+        decorator_fn(&mut command);
+
+        // WTF is this NO_CD=1 doing here?
+        command.arg("-e").arg("NO_CD=1").arg("-c").arg(path);
+
+        if let Some(program) = startup_command {
+            command.arg(program);
+        }
+
+        command.status().expect("Failed to split a window.");
+    }
+
+    fn send_keys<F>(&self, keys: &str, decorator_fn: F)
+    where
+        F: FnOnce(&mut Command),
+    {
+        let mut command = Command::new("tmux");
+        command.arg("send-keys");
+        decorator_fn(&mut command);
+
+        command
+            .arg(keys)
+            .arg("C-m")
+            .status()
+            .expect("Failed to send keys.");
+    }
+
+    fn set_pane_option<F>(&self, name: &str, value: &str, decorator_fn: F)
+    where
+        F: FnOnce(&mut Command),
+    {
+        let mut command = Command::new("tmux");
+        command.arg("set").arg("-p");
+
+        decorator_fn(&mut command);
+
+        command
+            .arg(name)
+            .arg(value)
+            .status()
+            .expect("Failed to get the count of window panes.");
+    }
+}
+
+impl Tmux for TmuxImpl {
+    fn list_sessions(&self, format: &str) -> Vec<String> {
         let output = Command::new("tmux")
             .arg("list-sessions")
             .arg("-F")
-            .arg("#{session_name}")
+            .arg(format)
             .output()
             .expect("Failed to list tmux sessions.");
 
-        let sessions_output = String::from_utf8_lossy(&output.stdout);
-        let mut sessions = HashMap::new();
-
-        for name in sessions_output.lines().filter(|s| !utils::is_numeric(s)) {
-            let windows = self.list_windows(name);
-            let session = TmuxSession {
-                background: None,
-                no_recent_tracking: None,
-                windows,
-            };
-
-            sessions.insert(name.to_string(), session);
-        }
-
-        sessions
+        String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .map(|s| s.to_string())
+            .collect::<Vec<String>>()
     }
 
-    fn list_windows(&self, session_name: &str) -> Vec<TmuxWindow> {
+    fn list_session_panes(&self, session_name: &str, format: &str) -> Vec<String> {
         let output = Command::new("tmux")
             .arg("list-panes")
             .arg("-s")
             .arg("-t")
             .arg(session_name)
             .arg("-F")
-            .arg("#{window_index}:#{window_name}:#{window_layout}:#{pane_index}:#{pane_active}:#{pane_current_path}")
+            .arg(format)
             .output()
             .expect("Failed to list tmux windows.");
 
-        let windows_output = String::from_utf8_lossy(&output.stdout);
-        let mut windows: Vec<TmuxWindow> = Vec::new();
-        let mut map: HashMap<WindowName, usize> = HashMap::new();
-        let mut index: usize = 0;
+        let result = String::from_utf8_lossy(&output.stdout);
+        result.lines().map(|s| s.to_string()).collect()
+    }
 
-        for window in windows_output.lines() {
-            let tokens = window.split(':').collect::<Vec<&str>>();
-            let window_index = tokens[0].parse::<usize>().unwrap();
-            let window_name = tokens[1];
-            let layout = tokens[2];
-            let pindex = tokens[3].parse::<usize>().unwrap();
-            let active = tokens[4] == "1";
-            let path = tokens[5].to_string();
-            let pane = TmuxPane {
-                index: pindex,
-                path,
-                active,
-                startup_command: None,
-                shell_command: None,
-                environment: None,
-            };
+    fn list_current_window_panes(&self, format: &str) -> Vec<String> {
+        let output = Command::new("tmux")
+            .arg("list-panes")
+            .arg("-F")
+            .arg(format)
+            .output()
+            .expect("Failed to list current window panes.");
 
-            if let Some(i) = map.get(window_name) {
-                let window = &mut windows[*i];
-                window.panes.push(pane);
-            } else {
-                let window = TmuxWindow {
-                    index: window_index,
-                    name: window_name.to_string(),
-                    layout: layout.to_string(),
-                    panes: vec![pane],
-                    active: None,
-                };
+        let result = String::from_utf8_lossy(&output.stdout);
 
-                windows.push(window);
-                map.insert(window_name.to_string(), index);
-                index += 1;
-            }
-        }
-
-        windows
+        result.lines().map(|x| x.to_string()).collect()
     }
 
     fn new_session(
@@ -198,10 +264,8 @@ impl Tmux for TmuxImpl {
         if !panes.is_empty() {
             let pane = &panes[0];
 
-            if let Some(environment) = &pane.environment {
-                for env in environment.iter() {
-                    command.arg("-e").arg(format!("{}={}", env.name, env.value));
-                }
+            for env in pane.environment.iter() {
+                command.arg("-e").arg(format!("{}={}", env.name, env.value));
             }
 
             command.arg("-c").arg(pane.path.as_str());
@@ -214,48 +278,41 @@ impl Tmux for TmuxImpl {
         command.status().expect("Failed to create new session.");
     }
 
+    fn new_window_in_current_session(
+        &self,
+        window_name: &str,
+        path: &str,
+        environment: &[EnvironmentVariable],
+        startup_command: &Option<String>,
+        background: bool,
+    ) {
+        let decorator = |command: &mut Command| {
+            if background {
+                command.arg("-d");
+            }
+        };
+
+        self.new_window(window_name, path, environment, startup_command, decorator);
+    }
+
     fn new_window(
         &self,
         session_name: &str,
-        tmux_window: &TmuxWindow,
-        i: usize,
+        window_name: &str,
+        path: &str,
+        environment: &[EnvironmentVariable],
         startup_command: &Option<String>,
+        background: bool,
     ) {
-        let name = tmux_window.name.as_str();
-        let panes = &tmux_window.panes;
+        let decorator = |command: &mut Command| {
+            command.arg("-t").arg(session_name);
 
-        // eprintln!(
-        //     "Creating new window '{}' in session '{}'.",
-        //     name, session_name
-        // );
-
-        let mut command = Command::new("tmux");
-        command
-            .arg("new-window")
-            .arg("-t")
-            .arg(format!("{}:{}", session_name, i + 1))
-            .arg("-n")
-            .arg(name)
-            .arg("-e")
-            .arg("NO_CD=1");
-
-        if !panes.is_empty() {
-            let pane = &panes[0];
-
-            if let Some(environment) = &pane.environment {
-                for env in environment.iter() {
-                    command.arg("-e").arg(format!("{}={}", env.name, env.value));
-                }
+            if background {
+                command.arg("-d");
             }
+        };
 
-            command.arg("-c").arg(pane.path.as_str());
-        }
-
-        if let Some(program) = startup_command {
-            command.arg(program);
-        }
-
-        command.status().expect("Failed to create new session.");
+        self.new_window(window_name, path, environment, startup_command, decorator);
     }
 
     fn has_session(&self, session_name: &str) -> bool {
@@ -344,32 +401,30 @@ impl Tmux for TmuxImpl {
         cmd.arg(command).status().expect("Failed to display popup.");
     }
 
+    fn split_current_window(
+        &self,
+        horizontally: bool,
+        path: &str,
+        startup_command: &Option<String>,
+    ) {
+        self.split_window(horizontally, path, |_| {}, startup_command);
+    }
+
     fn split_window(
         &self,
         session_name: &str,
         window_name: &str,
+        horizontally: bool,
         path: &str,
         startup_command: &Option<String>,
     ) {
-        // eprintln!(
-        //     "Splitting window '{}' in session '{}'.",
-        //     window_name, session_name
-        // );
-        let mut command = Command::new("tmux");
-        command
-            .arg("split-window")
-            .arg("-t")
-            .arg(format!("{}:{}", session_name, window_name))
-            .arg("-e")
-            .arg("NO_CD=1")
-            .arg("-c")
-            .arg(path);
+        let decorator = |command: &mut Command| {
+            command
+                .arg("-t")
+                .arg(format!("{}:{}", session_name, window_name));
+        };
 
-        if let Some(program) = startup_command {
-            command.arg(program);
-        }
-
-        command.status().expect("Failed to split a window.");
+        self.split_window(horizontally, path, decorator, startup_command);
     }
 
     fn select_layout(&self, session_name: &str, window_name: &str, layout: &str) {
@@ -386,28 +441,22 @@ impl Tmux for TmuxImpl {
             .expect("Failed to select window layout.");
     }
 
-    fn send_keys(
-        &self,
-        session_name: &str,
-        window_name: &str,
-        pane_index: Option<usize>,
-        keys: &str,
-    ) {
-        Command::new("tmux")
-            .arg("send-keys")
-            .arg("-t")
-            .arg(format!(
-                "{}:{}{}",
-                session_name,
-                window_name,
-                pane_index
-                    .map(|i| format!(".{}", i))
-                    .unwrap_or("".to_string())
-            ))
-            .arg(keys)
-            .arg("C-m")
-            .status()
-            .expect("Failed to send keys.");
+    fn send_keys_to_current_window(&self, pane_index: usize, keys: &str) {
+        let decorator = |command: &mut Command| {
+            command.arg("-t").arg(format!(".{}", pane_index));
+        };
+
+        self.send_keys(keys, decorator);
+    }
+
+    fn send_keys(&self, session_name: &str, window_name: &str, pane_index: usize, keys: &str) {
+        let decorator = |command: &mut Command| {
+            command
+                .arg("-t")
+                .arg(format!("{}:{}.{}", session_name, window_name, pane_index));
+        };
+
+        self.send_keys(keys, decorator);
     }
 
     fn window_dimension(&self) -> Option<WindowDimension> {
@@ -441,37 +490,16 @@ impl Tmux for TmuxImpl {
             .expect("Failed to set global option.");
     }
 
-    fn list_windows_names_with_status(&self) -> Vec<WindowDetails> {
+    fn list_windows_for_current_session(&self, format: &str) -> Vec<String> {
         let output = Command::new("tmux")
             .arg("list-windows")
             .arg("-F")
-            .arg("#{window_name}:#{window_active}:#{window_panes}")
+            .arg(format)
             .output()
             .expect("Failed to list tmux windows.");
 
-        let windows_output = String::from_utf8_lossy(&output.stdout);
-
-        windows_output
-            .lines()
-            .map(|line| {
-                let mut parts = line.split(':');
-                let name = parts.next().unwrap().to_string();
-                let active = parts.next().unwrap() == "1";
-                let pane_count = parts.next().unwrap().parse::<usize>().ok().unwrap();
-
-                let pane_window_name = if pane_count > 1 {
-                    self.get_pane_option(2, "@window-name")
-                } else {
-                    None
-                };
-
-                WindowDetails {
-                    name,
-                    active,
-                    pane_window_name,
-                }
-            })
-            .collect()
+        let result = String::from_utf8_lossy(&output.stdout);
+        result.lines().map(|x| x.to_string()).collect()
     }
 
     fn current_window_index(&self) -> usize {
@@ -506,4 +534,68 @@ impl Tmux for TmuxImpl {
             Some(trimmed.to_string())
         }
     }
+
+    fn count_panes(&self) -> usize {
+        let output = Command::new("tmux")
+            .arg("display-message")
+            .arg("-p")
+            .arg("#{window_panes}")
+            .output()
+            .expect("Failed to get the count of window panes.");
+
+        let id = String::from_utf8_lossy(&output.stdout);
+        id.trim().parse().expect("Failed to parse pane count.")
+    }
+
+    fn set_pane_option_for_current_window(&self, pane_index: usize, name: &str, value: &str) {
+        let decorator = |command: &mut Command| {
+            command.arg("-t").arg(format!(".{}", pane_index));
+        };
+
+        self.set_pane_option(name, value, decorator);
+    }
+
+    fn swap_panes(
+        &self,
+        source_pane_index: usize,
+        target_window_name: &str,
+        target_pane_index: usize,
+    ) {
+        let current_window_index = self.current_window_index();
+        Command::new("tmux")
+            .arg("swap-pane")
+            .arg("-s")
+            .arg(format!("{}.{}", current_window_index, source_pane_index))
+            .arg("-t")
+            .arg(format!("{}.{}", target_window_name, target_pane_index))
+            .status()
+            .expect("Failed to swap panes.");
+    }
+
+    fn rename_window_in_current_session(&self, old_name: &str, new_name: &str) {
+        Command::new("tmux")
+            .arg("rename-window")
+            .arg("-t")
+            .arg(old_name)
+            .arg(new_name)
+            .status()
+            .expect("Failed to rename window.");
+    }
+
+    // fn set_pane_option(
+    //     &self,
+    //     session_name: &str,
+    //     window_name: &str,
+    //     pane_index: usize,
+    //     name: &str,
+    //     value: &str,
+    // ) {
+    //     let decorator = |command: &mut Command| {
+    //         command
+    //             .arg("-t")
+    //             .arg(format!("{}:{}.{}", session_name, window_name, pane_index));
+    //     };
+    //
+    //     self.set_pane_option(name, value, decorator);
+    // }
 }

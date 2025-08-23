@@ -6,7 +6,7 @@ use crate::{
     utils,
 };
 
-pub(crate) trait Sessions {
+pub(crate) trait SessionStorage {
     fn save(&self, sessions: TmuxSessions);
     fn restore_all(&self);
     fn restore(&self, session_name: &str) -> Option<bool>;
@@ -15,12 +15,12 @@ pub(crate) trait Sessions {
     fn convert(&self, output: &str);
 }
 
-pub(crate) struct SessionsImpl<'t, T: Tmux> {
+pub(crate) struct SessionStorageImpl<'t, T: Tmux> {
     filename: String,
     tmux: &'t T,
 }
 
-impl<'t, T: Tmux> SessionsImpl<'t, T> {
+impl<'t, T: Tmux> SessionStorageImpl<'t, T> {
     pub(crate) fn new(filename: &str, tmux: &'t T) -> Self {
         Self {
             filename: filename.to_string(),
@@ -39,41 +39,34 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
         }
 
         for (i, tmux_window) in windows.iter().enumerate() {
-            if i == 0 {
-                let command = tmux_window.startup_command_for_pane(1);
-                self.tmux.new_session(session_name, tmux_window, &command);
+            if i == 0
+                && let Some(first_pane) = tmux_window.panes.first()
+            {
+                self.tmux
+                    .new_session(session_name, tmux_window, &first_pane.startup_command);
 
-                if command.is_none() {
-                    if let Some(shell_command) = tmux_window.shell_command_for_pane(i + 1) {
-                        self.tmux.send_keys(
-                            session_name,
-                            &tmux_window.name,
-                            Some(1),
-                            &shell_command,
-                        );
-                    }
+                if first_pane.startup_command.is_none()
+                    && let Some(shell_command) = &first_pane.shell_command
+                {
+                    self.tmux
+                        .send_keys(session_name, &tmux_window.name, 1, shell_command);
                 }
 
                 if tmux_window.panes.len() > 1 {
                     for (i, pane) in tmux_window.panes.iter().enumerate().skip(1) {
-                        let command = tmux_window.startup_command_for_pane(i + 1);
-
                         self.tmux.split_window(
                             session_name,
                             &tmux_window.name,
+                            true,
                             &pane.path,
-                            &command,
+                            &pane.startup_command,
                         );
 
-                        if command.is_none() {
-                            if let Some(shell_command) = &pane.shell_command {
-                                self.tmux.send_keys(
-                                    session_name,
-                                    &tmux_window.name,
-                                    Some(i),
-                                    shell_command,
-                                );
-                            }
+                        if pane.startup_command.is_none()
+                            && let Some(shell_command) = &pane.shell_command
+                        {
+                            self.tmux
+                                .send_keys(session_name, &tmux_window.name, i, shell_command);
                         }
                     }
 
@@ -83,19 +76,23 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
                         layout: tmux_window.layout.clone(),
                     });
                 }
-            } else {
-                let command = tmux_window.startup_command_for_pane(1);
-                self.tmux.new_window(session_name, tmux_window, i, &command);
+            } else if i > 0
+                && let Some(pane) = tmux_window.panes.first()
+            {
+                self.tmux.new_window(
+                    session_name,
+                    tmux_window.name.as_str(),
+                    &pane.path,
+                    &pane.environment,
+                    &pane.startup_command,
+                    false,
+                );
 
-                if command.is_none() {
-                    if let Some(shell_command) = tmux_window.shell_command_for_pane(1) {
-                        self.tmux.send_keys(
-                            session_name,
-                            &tmux_window.name,
-                            Some(1),
-                            &shell_command,
-                        );
-                    }
+                if pane.startup_command.is_none()
+                    && let Some(shell_command) = &pane.shell_command
+                {
+                    self.tmux
+                        .send_keys(session_name, &tmux_window.name, 1, shell_command);
                 }
 
                 if tmux_window.panes.len() > 1 {
@@ -104,19 +101,16 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
                         self.tmux.split_window(
                             session_name,
                             &tmux_window.name,
+                            true,
                             &pane.path,
                             &command,
                         );
 
-                        if command.is_none() {
-                            if let Some(shell_command) = &pane.shell_command {
-                                self.tmux.send_keys(
-                                    session_name,
-                                    &tmux_window.name,
-                                    Some(i),
-                                    shell_command,
-                                );
-                            }
+                        if command.is_none()
+                            && let Some(shell_command) = &pane.shell_command
+                        {
+                            self.tmux
+                                .send_keys(session_name, &tmux_window.name, i, shell_command);
                         }
                     }
 
@@ -146,7 +140,7 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
     }
 }
 
-impl<'t, T: Tmux> Sessions for SessionsImpl<'t, T> {
+impl<'t, T: Tmux> SessionStorage for SessionStorageImpl<'t, T> {
     fn save(&self, sessions: TmuxSessions) {
         let toml_string =
             toml::to_string(&sessions).expect("Failed to serialize sessions into TOML.");
@@ -197,10 +191,10 @@ impl<'t, T: Tmux> Sessions for SessionsImpl<'t, T> {
             self.process_session(session_name, windows, &mut windows_to_layout);
             self.restore_layouts(&windows_to_layout, 300);
 
-            if !windows.is_empty() {
-                if let Some(background) = session.background {
-                    return background;
-                }
+            if !windows.is_empty()
+                && let Some(background) = session.background
+            {
+                return background;
             }
 
             false

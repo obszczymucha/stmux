@@ -3,6 +3,7 @@ use std::cmp::max;
 use crate::{
     config::Config,
     model::{TmuxSession, WindowDimension},
+    session::{Session, SessionImpl},
     session_name_file::SessionNameFile,
     tmux::Tmux,
     utils,
@@ -36,12 +37,11 @@ impl<'t, 's, T: Tmux, S: SessionNameFile> Recent for RecentImpl<'t, 's, T, S> {
             return;
         }
 
-        if let Some(session) = session {
-            if let Some(no_recent_tracking) = session.no_recent_tracking {
-                if no_recent_tracking {
-                    return;
-                }
-            }
+        if let Some(session) = session
+            && let Some(no_recent_tracking) = session.no_recent_tracking
+            && no_recent_tracking
+        {
+            return;
         }
 
         let mut names: Vec<String> = vec![session_name.to_string()];
@@ -51,7 +51,8 @@ impl<'t, 's, T: Tmux, S: SessionNameFile> Recent for RecentImpl<'t, 's, T, S> {
 
     fn next(&self, session_name: &str) -> Option<String> {
         let recent_session_names = self.recent_session_file.read();
-        let current_session_names = self.tmux.list_session_names();
+        let session = SessionImpl::new(self.tmux);
+        let current_session_names = session.list_names();
         let session_names = recent_session_names
             .into_iter()
             .filter(|s| current_session_names.contains(s))
@@ -74,7 +75,8 @@ impl<'t, 's, T: Tmux, S: SessionNameFile> Recent for RecentImpl<'t, 's, T, S> {
 
     fn previous(&self, session_name: &str) -> Option<String> {
         let recent_session_names = self.recent_session_file.read();
-        let current_session_names = self.tmux.list_session_names();
+        let session = SessionImpl::new(self.tmux);
+        let current_session_names = session.list_names();
         let session_names = recent_session_names
             .into_iter()
             .filter(|s| current_session_names.contains(s))
@@ -147,8 +149,8 @@ mod next_tests {
     fn should_return_the_next_session() {
         // Given
         let mut tmux = MockTmux::new();
-        tmux.expect_list_session_names()
-            .returning(|| vec!["a".into(), "b".into()].clone());
+        tmux.expect_list_sessions()
+            .returning(|_| vec!["a".into(), "b".into()].clone());
 
         let mut recent_session_file = MockSessionNameFile::new();
         recent_session_file
@@ -168,8 +170,8 @@ mod next_tests {
     fn should_return_the_next_available_session() {
         // Given
         let mut tmux = MockTmux::new();
-        tmux.expect_list_session_names()
-            .returning(|| vec!["a".into(), "c".into()].clone());
+        tmux.expect_list_sessions()
+            .returning(|_| vec!["a".into(), "c".into()].clone());
 
         let mut recent_session_file = MockSessionNameFile::new();
         recent_session_file
@@ -189,8 +191,8 @@ mod next_tests {
     fn should_return_none_if_the_session_is_the_last_one() {
         // Given
         let mut tmux = MockTmux::new();
-        tmux.expect_list_session_names()
-            .returning(|| vec!["a".into(), "b".into(), "c".into()].clone());
+        tmux.expect_list_sessions()
+            .returning(|_| vec!["a".into(), "b".into(), "c".into()].clone());
 
         let mut recent_session_file = MockSessionNameFile::new();
         recent_session_file
@@ -218,8 +220,8 @@ mod previous_tests {
     fn should_return_the_previous_session() {
         // Given
         let mut tmux = MockTmux::new();
-        tmux.expect_list_session_names()
-            .returning(|| vec!["a".into(), "b".into(), "c".into()].clone());
+        tmux.expect_list_sessions()
+            .returning(|_| vec!["a".into(), "b".into(), "c".into()].clone());
 
         let mut recent_session_file = MockSessionNameFile::new();
         recent_session_file
@@ -239,8 +241,8 @@ mod previous_tests {
     fn should_return_the_previous_available_session() {
         // Given
         let mut tmux = MockTmux::new();
-        tmux.expect_list_session_names()
-            .returning(|| vec!["a".into(), "c".into()].clone());
+        tmux.expect_list_sessions()
+            .returning(|_| vec!["a".into(), "c".into()].clone());
 
         let mut recent_session_file = MockSessionNameFile::new();
         recent_session_file
@@ -260,8 +262,8 @@ mod previous_tests {
     fn should_return_none_if_the_session_is_the_first_one() {
         // Given
         let mut tmux = MockTmux::new();
-        tmux.expect_list_session_names()
-            .returning(|| vec!["a".into(), "b".into(), "c".into()].clone());
+        tmux.expect_list_sessions()
+            .returning(|_| vec!["a".into(), "b".into(), "c".into()].clone());
 
         let mut recent_session_file = MockSessionNameFile::new();
         recent_session_file

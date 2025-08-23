@@ -1,24 +1,29 @@
+use std::collections::HashMap;
 use std::io::Write;
 use std::{
     cmp::{max, min},
-    fs::{remove_file, File},
+    fs::{File, remove_file},
     path::Path,
     process::Command,
     thread,
 };
 
-use crate::model::{SessionName, TmuxSession};
-use crate::sessions::Sessions;
+use crate::model::{SessionName, TmuxSession, TmuxSessions};
+use crate::sessions::SessionStorage;
 use crate::tmux::Tmux;
+use crate::window::{Window, WindowImpl};
 
 const FZF_DEFAULT_OPTS: &str = "--bind=alt-q:close,alt-j:down,alt-k:up,alt-u:page-up,alt-d:page-down,tab:accept --color=fg:#cdd6f4,header:#f38ba8,info:#cba6f7,pointer:#f5e0dc --color=marker:#b4befe,fg+:#cdd6f4,prompt:#cba6f7,hl+:#f38ba8 --color=selected-bg:#45475a";
 
 pub(crate) trait Session {
-    fn find(&self, session_names: Vec<SessionName>, title: &str);
-    fn select(&self, name: &str, sessions: &dyn Sessions);
-    fn save(&self, sessions: &dyn Sessions);
-    fn delete(&self, session_name: &str, sessions: &dyn Sessions);
-    fn update(&self, session_name: &str, session: TmuxSession, sessions: &dyn Sessions);
+    fn find(&self, session_names: Vec<SessionName>, title: &str, split: bool);
+    fn select(&self, name: &str, sessions: &dyn SessionStorage);
+    fn save(&self, sessions: &dyn SessionStorage);
+    fn delete(&self, session_name: &str, sessions: &dyn SessionStorage);
+    fn update(&self, session_name: &str, session: TmuxSession, sessions: &dyn SessionStorage);
+    fn list(&self) -> TmuxSessions;
+    fn list_names(&self) -> Vec<SessionName>;
+    fn list_other_session_names(&self) -> Vec<SessionName>;
 }
 
 pub(crate) struct SessionImpl<'t, T: Tmux> {
@@ -32,7 +37,7 @@ impl<'t, T: Tmux> SessionImpl<'t, T> {
 }
 
 impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
-    fn find(&self, session_names: Vec<SessionName>, title: &str) {
+    fn find(&self, session_names: Vec<SessionName>, title: &str, split: bool) {
         let window_dimension = self.tmux.window_dimension();
         let input_fifo_path = "/tmp/stmux_fzf_input.fifo";
         let popup_title = format!(" {} ", title);
@@ -90,10 +95,19 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
             "--no-multi --border --border-label \"{}\" {}",
             popup_title, colors
         );
-        let fzf_command = format!(
-            "echo -ne \"\\e]12;{}\\a\"; cat {} | fzf {} | xargs -I {{}} stmux session select '{{}}'",
-            cursor_color, input_fifo_path, fzf_opts
-        );
+
+        // FIXME: Bundling the logic here is no good, we should pass what we want to do on select instead.
+        let fzf_command = if split {
+            format!(
+                "echo -ne \"\\e]12;{}\\a\"; cat {} | fzf {} | xargs -I {{}} stmux window smart-split '{{}}'",
+                cursor_color, input_fifo_path, fzf_opts
+            )
+        } else {
+            format!(
+                "echo -ne \"\\e]12;{}\\a\"; cat {} | fzf {} | xargs -I {{}} stmux session select '{{}}'",
+                cursor_color, input_fifo_path, fzf_opts
+            )
+        };
 
         let tmux_command = format!(
             "tmux display-popup -E -B {}-e 'FZF_DEFAULT_OPTS={}' -w {} -h {} '{}'",
@@ -110,31 +124,62 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
         let _ = remove_file(input_fifo_path);
     }
 
-    fn select(&self, name: &str, sessions: &dyn Sessions) {
+    fn select(&self, name: &str, sessions: &dyn SessionStorage) {
         if !self.tmux.has_session(name) {
-            if let Some(background) = sessions.restore(name) {
-                if !background {
-                    self.tmux.select_session(name);
-                }
+            if let Some(background) = sessions.restore(name)
+                && !background
+            {
+                self.tmux.select_session(name);
             }
         } else {
             self.tmux.select_session(name);
         }
     }
 
-    fn save(&self, _: &dyn Sessions) {
+    fn save(&self, _: &dyn SessionStorage) {
         unimplemented!()
     }
 
-    fn delete(&self, session_name: &str, sessions: &dyn Sessions) {
+    fn delete(&self, session_name: &str, sessions: &dyn SessionStorage) {
         let mut stored_sessions = sessions.load();
         stored_sessions.remove(session_name);
         sessions.save(stored_sessions);
     }
 
-    fn update(&self, session_name: &str, session: TmuxSession, sessions: &dyn Sessions) {
+    fn update(&self, session_name: &str, session: TmuxSession, sessions: &dyn SessionStorage) {
         let mut stored_sessions = sessions.load();
         stored_sessions.insert(session_name.to_string(), session);
         sessions.save(stored_sessions);
+    }
+
+    fn list(&self) -> TmuxSessions {
+        let session_names = self.list_names();
+        let mut sessions = HashMap::new();
+        let window = WindowImpl::new(self.tmux);
+
+        for name in session_names {
+            let windows = window.list_with_pane_details(name.as_str());
+            let session = TmuxSession {
+                background: None,
+                no_recent_tracking: None,
+                windows,
+            };
+
+            sessions.insert(name.to_string(), session);
+        }
+
+        sessions
+    }
+
+    fn list_names(&self) -> Vec<SessionName> {
+        self.tmux.list_sessions("#{session_name}")
+    }
+
+    fn list_other_session_names(&self) -> Vec<SessionName> {
+        let current_session_name = self.tmux.current_session_name();
+        self.list_names()
+            .into_iter()
+            .filter(|s| s != &current_session_name)
+            .collect()
     }
 }
