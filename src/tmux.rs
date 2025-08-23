@@ -4,6 +4,7 @@ use std::process::Stdio;
 
 use mockall::automock;
 
+use crate::model::SessionAndWindowName;
 use crate::model::SessionName;
 use crate::model::TmuxPane;
 use crate::model::TmuxSession;
@@ -49,23 +50,31 @@ pub(crate) trait Tmux {
     );
     fn split_window(
         &self,
-        session_name: &str,
-        window_name: &str,
+        session_and_window_name: Option<SessionAndWindowName>,
+        horizontally: bool,
         path: &str,
         startup_command: &Option<String>,
     );
     fn select_layout(&self, session_name: &str, window_name: &str, layout: &str);
     fn send_keys(
         &self,
-        session_name: &str,
-        window_name: &str,
-        pane_index: Option<usize>,
+        session_and_window_name: Option<SessionAndWindowName>,
+        pane_index: usize,
         keys: &str,
     );
     fn window_dimension(&self) -> Option<WindowDimension>;
     fn set_global(&self, option_name: &str, value: &str);
     fn current_window_index(&self) -> usize;
     fn get_pane_option(&self, pane_index: usize, option_name: &str) -> Option<String>;
+    fn count_panes(&self) -> usize;
+    fn list_panes_with_format(&self, format: &str) -> Vec<String>;
+    fn set_pane_option(
+        &self,
+        session_and_window_name: Option<SessionAndWindowName>,
+        pane_index: usize,
+        name: &str,
+        value: &str,
+    );
 }
 
 pub(crate) struct TmuxImpl;
@@ -346,8 +355,8 @@ impl Tmux for TmuxImpl {
 
     fn split_window(
         &self,
-        session_name: &str,
-        window_name: &str,
+        session_and_window_name: Option<SessionAndWindowName>,
+        horizontally: bool,
         path: &str,
         startup_command: &Option<String>,
     ) {
@@ -356,14 +365,21 @@ impl Tmux for TmuxImpl {
         //     window_name, session_name
         // );
         let mut command = Command::new("tmux");
-        command
-            .arg("split-window")
-            .arg("-t")
-            .arg(format!("{}:{}", session_name, window_name))
-            .arg("-e")
-            .arg("NO_CD=1")
-            .arg("-c")
-            .arg(path);
+        command.arg("split-window");
+
+        if horizontally {
+            command.arg("-h");
+        } else {
+            command.arg("-v");
+        }
+
+        if let Some(s) = session_and_window_name {
+            command
+                .arg("-t")
+                .arg(format!("{}:{}", s.session_name, s.window_name));
+        }
+
+        command.arg("-e").arg("NO_CD=1").arg("-c").arg(path);
 
         if let Some(program) = startup_command {
             command.arg(program);
@@ -388,22 +404,19 @@ impl Tmux for TmuxImpl {
 
     fn send_keys(
         &self,
-        session_name: &str,
-        window_name: &str,
-        pane_index: Option<usize>,
+        session_and_window_name: Option<SessionAndWindowName>,
+        pane_index: usize,
         keys: &str,
     ) {
+        let prefix = match session_and_window_name {
+            Some(s) => format!("{}:{}", s.session_name, s.window_name),
+            None => "".to_string(),
+        };
+
         Command::new("tmux")
             .arg("send-keys")
             .arg("-t")
-            .arg(format!(
-                "{}:{}{}",
-                session_name,
-                window_name,
-                pane_index
-                    .map(|i| format!(".{}", i))
-                    .unwrap_or("".to_string())
-            ))
+            .arg(format!("{}.{}", prefix, pane_index))
             .arg(keys)
             .arg("C-m")
             .status()
@@ -505,5 +518,53 @@ impl Tmux for TmuxImpl {
         } else {
             Some(trimmed.to_string())
         }
+    }
+
+    fn count_panes(&self) -> usize {
+        let output = Command::new("tmux")
+            .arg("display-message")
+            .arg("-p")
+            .arg("#{window_panes}")
+            .output()
+            .expect("Failed to get the count of window panes.");
+
+        let id = String::from_utf8_lossy(&output.stdout);
+        id.trim().parse().expect("Failed to parse pane count.")
+    }
+
+    fn list_panes_with_format(&self, format: &str) -> Vec<String> {
+        let output = Command::new("tmux")
+            .arg("list-panes")
+            .arg("-F")
+            .arg(format)
+            .output()
+            .expect("Failed to get the count of window panes.");
+
+        let result = String::from_utf8_lossy(&output.stdout);
+
+        result.lines().map(|x| x.to_string()).collect()
+    }
+
+    fn set_pane_option(
+        &self,
+        session_and_window_name: Option<SessionAndWindowName>,
+        pane_index: usize,
+        name: &str,
+        value: &str,
+    ) {
+        let prefix = match session_and_window_name {
+            Some(s) => format!("{}:{}", s.session_name, s.window_name),
+            None => "".to_string(),
+        };
+
+        Command::new("tmux")
+            .arg("set")
+            .arg("-p")
+            .arg("-t")
+            .arg(format!("{}.{}", prefix, pane_index))
+            .arg(name)
+            .arg(value)
+            .status()
+            .expect("Failed to get the count of window panes.");
     }
 }

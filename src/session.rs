@@ -14,7 +14,7 @@ use crate::tmux::Tmux;
 const FZF_DEFAULT_OPTS: &str = "--bind=alt-q:close,alt-j:down,alt-k:up,alt-u:page-up,alt-d:page-down,tab:accept --color=fg:#cdd6f4,header:#f38ba8,info:#cba6f7,pointer:#f5e0dc --color=marker:#b4befe,fg+:#cdd6f4,prompt:#cba6f7,hl+:#f38ba8 --color=selected-bg:#45475a";
 
 pub(crate) trait Session {
-    fn find(&self, session_names: Vec<SessionName>, title: &str);
+    fn find(&self, session_names: Vec<SessionName>, title: &str, split: bool);
     fn select(&self, name: &str, sessions: &dyn Sessions);
     fn save(&self, sessions: &dyn Sessions);
     fn delete(&self, session_name: &str, sessions: &dyn Sessions);
@@ -32,7 +32,7 @@ impl<'t, T: Tmux> SessionImpl<'t, T> {
 }
 
 impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
-    fn find(&self, session_names: Vec<SessionName>, title: &str) {
+    fn find(&self, session_names: Vec<SessionName>, title: &str, split: bool) {
         let window_dimension = self.tmux.window_dimension();
         let input_fifo_path = "/tmp/stmux_fzf_input.fifo";
         let popup_title = format!(" {} ", title);
@@ -90,10 +90,19 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
             "--no-multi --border --border-label \"{}\" {}",
             popup_title, colors
         );
-        let fzf_command = format!(
-            "echo -ne \"\\e]12;{}\\a\"; cat {} | fzf {} | xargs -I {{}} stmux session select '{{}}'",
-            cursor_color, input_fifo_path, fzf_opts
-        );
+
+        // FIXME: Bundling the logic here is no good, we should pass what we want to do on select instead.
+        let fzf_command = if split {
+            format!(
+                "echo -ne \"\\e]12;{}\\a\"; cat {} | fzf {} | xargs -I {{}} stmux window smart-split '{{}}'",
+                cursor_color, input_fifo_path, fzf_opts
+            )
+        } else {
+            format!(
+                "echo -ne \"\\e]12;{}\\a\"; cat {} | fzf {} | xargs -I {{}} stmux session select '{{}}'",
+                cursor_color, input_fifo_path, fzf_opts
+            )
+        };
 
         let tmux_command = format!(
             "tmux display-popup -E -B {}-e 'FZF_DEFAULT_OPTS={}' -w {} -h {} '{}'",

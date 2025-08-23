@@ -27,7 +27,10 @@ pub(crate) enum ConfigAction {
 pub(crate) enum SessionAction {
     /// Show a session picker for all managed sessions.
     #[clap(name = "find-all")]
-    FindAll,
+    FindAll {
+        #[arg(long)]
+        split: bool,
+    },
     /// Show a session picker for active sessions only.
     Find,
     /// Switch to or create a session.
@@ -70,9 +73,7 @@ pub(crate) enum SessionsAction {
     /// List sessions managed by stmux.
     List,
     /// Convert old toml config to a new format (to be removed).
-    Convert {
-        filename: String,
-    },
+    Convert { filename: String },
 }
 
 #[derive(Subcommand, Debug)]
@@ -102,6 +103,11 @@ pub(crate) enum BookmarkAction {
 }
 
 #[derive(Subcommand, Debug)]
+pub(crate) enum WindowAction {
+    SmartSplit { session_name: String },
+}
+
+#[derive(Subcommand, Debug)]
 pub(crate) enum Action {
     Config {
         #[command(subcommand)]
@@ -122,6 +128,10 @@ pub(crate) enum Action {
     Bookmark {
         #[command(subcommand)]
         action: BookmarkAction,
+    },
+    Window {
+        #[command(subcommand)]
+        action: WindowAction,
     },
     Status,
 }

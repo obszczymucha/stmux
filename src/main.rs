@@ -9,6 +9,7 @@ mod sessions;
 mod status;
 mod tmux;
 mod utils;
+mod window;
 use std::collections::HashSet;
 
 use args::{
@@ -25,6 +26,9 @@ use session_name_file::{SessionNameFile, SessionNameFileImpl};
 use sessions::{Sessions, SessionsImpl};
 use status::{Status, StatusImpl};
 use tmux::{Tmux, TmuxImpl};
+use window::WindowImpl;
+
+use crate::{args::WindowAction, window::Window};
 
 fn run(config: &dyn Config, action: Action) {
     match action {
@@ -42,7 +46,7 @@ fn run(config: &dyn Config, action: Action) {
             },
         },
         Action::Session { action } => match action {
-            SessionAction::FindAll => {
+            SessionAction::FindAll { split } => {
                 let tmux = TmuxImpl;
                 let sessions = SessionsImpl::new(config.sessions_filename().as_str(), &tmux).load();
                 let recent_sessions: &dyn SessionNameFile =
@@ -52,7 +56,7 @@ fn run(config: &dyn Config, action: Action) {
                 let unique_session_names: HashSet<String> = tmux
                     .list_session_names()
                     .into_iter()
-                    .chain(saved_session_names) // TODO: check this
+                    .chain(saved_session_names)
                     .collect();
                 let mut stored_names: Vec<String> = unique_session_names.into_iter().collect();
                 let compare = |a: &String, b: &String| a.to_lowercase().cmp(&b.to_lowercase());
@@ -76,7 +80,8 @@ fn run(config: &dyn Config, action: Action) {
                 }
 
                 let session = SessionImpl::new(&tmux);
-                session.find(session_names, "All Sessions");
+                let title = format!("All Sessions{}", if split { " (split)" } else { "" });
+                session.find(session_names, title.as_str(), split);
             }
             SessionAction::Find => {
                 let tmux = TmuxImpl;
@@ -91,14 +96,14 @@ fn run(config: &dyn Config, action: Action) {
                     run(
                         config,
                         Action::Session {
-                            action: SessionAction::FindAll,
+                            action: SessionAction::FindAll { split: false },
                         },
                     );
                     return;
                 }
 
                 let session = SessionImpl::new(&tmux);
-                session.find(session_names, "Sessions");
+                session.find(session_names, "Sessions", false);
             }
             SessionAction::Select { session_name } => {
                 let tmux = TmuxImpl;
@@ -323,6 +328,19 @@ fn run(config: &dyn Config, action: Action) {
             let status = StatusImpl::new(tmux, &file);
             tmux.set_global("status-left", &status.get());
         }
+        Action::Window { action } => match action {
+            WindowAction::SmartSplit { session_name } => {
+                let tmux = TmuxImpl;
+                let sessions = SessionsImpl::new(config.sessions_filename().as_str(), &tmux);
+
+                if let Some(session) = sessions.load().get(&session_name) {
+                    let window = WindowImpl::new(&tmux);
+                    window.smart_split(&session_name, session);
+                } else {
+                    eprintln!("Session '{}' not found.", session_name);
+                }
+            }
+        },
     }
 }
 

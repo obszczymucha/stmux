@@ -47,6 +47,11 @@ pub(crate) struct WindowDimension {
     pub(crate) height: usize,
 }
 
+pub(crate) struct SessionAndWindowName {
+    pub(crate) session_name: SessionName,
+    pub(crate) window_name: WindowName,
+}
+
 pub(crate) struct Layout {
     pub(crate) session_name: SessionName,
     pub(crate) window_name: WindowName,

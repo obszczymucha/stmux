@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fs, thread::sleep, time::Duration};
 
 use crate::{
-    model::{Layout, SessionName, TmuxSession, TmuxSessions, TmuxWindows},
+    model::{Layout, SessionAndWindowName, SessionName, TmuxSession, TmuxSessions, TmuxWindows},
     tmux::Tmux,
     utils,
 };
@@ -46,9 +46,11 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
                 if command.is_none() {
                     if let Some(shell_command) = tmux_window.shell_command_for_pane(i + 1) {
                         self.tmux.send_keys(
-                            session_name,
-                            &tmux_window.name,
-                            Some(1),
+                            Some(SessionAndWindowName {
+                                session_name: session_name.to_string(),
+                                window_name: tmux_window.name.clone(),
+                            }),
+                            1,
                             &shell_command,
                         );
                     }
@@ -59,8 +61,11 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
                         let command = tmux_window.startup_command_for_pane(i + 1);
 
                         self.tmux.split_window(
-                            session_name,
-                            &tmux_window.name,
+                            Some(SessionAndWindowName {
+                                session_name: session_name.to_string(),
+                                window_name: tmux_window.name.clone(),
+                            }),
+                            true,
                             &pane.path,
                             &command,
                         );
@@ -68,9 +73,11 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
                         if command.is_none() {
                             if let Some(shell_command) = &pane.shell_command {
                                 self.tmux.send_keys(
-                                    session_name,
-                                    &tmux_window.name,
-                                    Some(i),
+                                    Some(SessionAndWindowName {
+                                        session_name: session_name.to_string(),
+                                        window_name: tmux_window.name.clone(),
+                                    }),
+                                    i,
                                     shell_command,
                                 );
                             }
@@ -90,9 +97,11 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
                 if command.is_none() {
                     if let Some(shell_command) = tmux_window.shell_command_for_pane(1) {
                         self.tmux.send_keys(
-                            session_name,
-                            &tmux_window.name,
-                            Some(1),
+                            Some(SessionAndWindowName {
+                                session_name: session_name.to_string(),
+                                window_name: tmux_window.name.clone(),
+                            }),
+                            1,
                             &shell_command,
                         );
                     }
@@ -102,8 +111,11 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
                     for pane in tmux_window.panes.iter().skip(1) {
                         let command = tmux_window.startup_command_for_pane(i + 1);
                         self.tmux.split_window(
-                            session_name,
-                            &tmux_window.name,
+                            Some(SessionAndWindowName {
+                                session_name: session_name.to_string(),
+                                window_name: tmux_window.name.clone(),
+                            }),
+                            true,
                             &pane.path,
                             &command,
                         );
@@ -111,9 +123,11 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
                         if command.is_none() {
                             if let Some(shell_command) = &pane.shell_command {
                                 self.tmux.send_keys(
-                                    session_name,
-                                    &tmux_window.name,
-                                    Some(i),
+                                    Some(SessionAndWindowName {
+                                        session_name: session_name.to_string(),
+                                        window_name: tmux_window.name.clone(),
+                                    }),
+                                    i,
                                     shell_command,
                                 );
                             }
