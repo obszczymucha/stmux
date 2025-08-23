@@ -1,25 +1,25 @@
-use std::collections::HashMap;
 use std::process::Command;
 use std::process::Stdio;
 
 use mockall::automock;
 
 use crate::model::SessionAndWindowName;
-use crate::model::SessionName;
-use crate::model::TmuxPane;
-use crate::model::TmuxSession;
-use crate::model::TmuxSessions;
 use crate::model::TmuxWindow;
 use crate::model::WindowDetails;
 use crate::model::WindowDimension;
-use crate::model::WindowName;
-use crate::utils;
+
+// Note to myself:
+// Should this be dum and just expose tmux cli api?
+// Right now there's a mixture of logic and the above.
+// Dunno yet. Going towards this being just a cli and
+// other structs like Window/Session use this for more
+// sophisticated logic.
 
 #[automock]
 pub(crate) trait Tmux {
-    fn list_session_names(&self) -> Vec<SessionName>;
-    fn list_sessions(&self) -> TmuxSessions;
-    fn list_windows(&self, session_name: &str) -> Vec<TmuxWindow>;
+    fn list_sessions(&self, format: &str) -> Vec<String>;
+    fn list_session_panes(&self, session_name: &str, format: &str) -> Vec<String>;
+    fn list_current_window_panes(&self, format: &str) -> Vec<String>;
     fn list_windows_names_with_status(&self) -> Vec<WindowDetails>;
     fn new_session(
         &self,
@@ -67,7 +67,6 @@ pub(crate) trait Tmux {
     fn current_window_index(&self) -> usize;
     fn get_pane_option(&self, pane_index: usize, option_name: &str) -> Option<String>;
     fn count_panes(&self) -> usize;
-    fn list_panes_with_format(&self, format: &str) -> Vec<String>;
     fn set_pane_option(
         &self,
         session_and_window_name: Option<SessionAndWindowName>,
@@ -80,103 +79,46 @@ pub(crate) trait Tmux {
 pub(crate) struct TmuxImpl;
 
 impl Tmux for TmuxImpl {
-    fn list_session_names(&self) -> Vec<SessionName> {
-        let output = Command::new("tmux")
-            .arg("list-sessions")
-            .output()
-            .expect("Failed to list tmux sessions.");
-
-        let sessions_output = String::from_utf8_lossy(&output.stdout);
-        let mut session_names = Vec::new();
-        for session in sessions_output.lines() {
-            if let Some((name, _)) = session
-                .split_once(':')
-                .filter(|(name, _)| !utils::is_numeric(name))
-            {
-                session_names.push(name.to_string());
-            }
-        }
-
-        session_names
-    }
-
-    fn list_sessions(&self) -> TmuxSessions {
+    fn list_sessions(&self, format: &str) -> Vec<String> {
         let output = Command::new("tmux")
             .arg("list-sessions")
             .arg("-F")
-            .arg("#{session_name}")
+            .arg(format)
             .output()
             .expect("Failed to list tmux sessions.");
 
-        let sessions_output = String::from_utf8_lossy(&output.stdout);
-        let mut sessions = HashMap::new();
-
-        for name in sessions_output.lines().filter(|s| !utils::is_numeric(s)) {
-            let windows = self.list_windows(name);
-            let session = TmuxSession {
-                background: None,
-                no_recent_tracking: None,
-                windows,
-            };
-
-            sessions.insert(name.to_string(), session);
-        }
-
-        sessions
+        String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .map(|s| s.to_string())
+            .collect::<Vec<String>>()
     }
 
-    fn list_windows(&self, session_name: &str) -> Vec<TmuxWindow> {
+    fn list_session_panes(&self, session_name: &str, format: &str) -> Vec<String> {
         let output = Command::new("tmux")
             .arg("list-panes")
             .arg("-s")
             .arg("-t")
             .arg(session_name)
             .arg("-F")
-            .arg("#{window_index}:#{window_name}:#{window_layout}:#{pane_index}:#{pane_active}:#{pane_current_path}")
+            .arg(format)
             .output()
             .expect("Failed to list tmux windows.");
 
-        let windows_output = String::from_utf8_lossy(&output.stdout);
-        let mut windows: Vec<TmuxWindow> = Vec::new();
-        let mut map: HashMap<WindowName, usize> = HashMap::new();
-        let mut index: usize = 0;
+        let result = String::from_utf8_lossy(&output.stdout);
+        result.lines().map(|s| s.to_string()).collect()
+    }
 
-        for window in windows_output.lines() {
-            let tokens = window.split(':').collect::<Vec<&str>>();
-            let window_index = tokens[0].parse::<usize>().unwrap();
-            let window_name = tokens[1];
-            let layout = tokens[2];
-            let pindex = tokens[3].parse::<usize>().unwrap();
-            let active = tokens[4] == "1";
-            let path = tokens[5].to_string();
-            let pane = TmuxPane {
-                index: pindex,
-                path,
-                active,
-                startup_command: None,
-                shell_command: None,
-                environment: None,
-            };
+    fn list_current_window_panes(&self, format: &str) -> Vec<String> {
+        let output = Command::new("tmux")
+            .arg("list-panes")
+            .arg("-F")
+            .arg(format)
+            .output()
+            .expect("Failed to list current window panes.");
 
-            if let Some(i) = map.get(window_name) {
-                let window = &mut windows[*i];
-                window.panes.push(pane);
-            } else {
-                let window = TmuxWindow {
-                    index: window_index,
-                    name: window_name.to_string(),
-                    layout: layout.to_string(),
-                    panes: vec![pane],
-                    active: None,
-                };
+        let result = String::from_utf8_lossy(&output.stdout);
 
-                windows.push(window);
-                map.insert(window_name.to_string(), index);
-                index += 1;
-            }
-        }
-
-        windows
+        result.lines().map(|x| x.to_string()).collect()
     }
 
     fn new_session(
@@ -530,19 +472,6 @@ impl Tmux for TmuxImpl {
 
         let id = String::from_utf8_lossy(&output.stdout);
         id.trim().parse().expect("Failed to parse pane count.")
-    }
-
-    fn list_panes_with_format(&self, format: &str) -> Vec<String> {
-        let output = Command::new("tmux")
-            .arg("list-panes")
-            .arg("-F")
-            .arg(format)
-            .output()
-            .expect("Failed to get the count of window panes.");
-
-        let result = String::from_utf8_lossy(&output.stdout);
-
-        result.lines().map(|x| x.to_string()).collect()
     }
 
     fn set_pane_option(

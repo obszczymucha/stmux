@@ -1,5 +1,7 @@
+use std::collections::HashMap;
+
 use crate::{
-    model::{TmuxPane, TmuxSession},
+    model::{TmuxPane, TmuxSession, TmuxWindow, WindowName},
     tmux::Tmux,
 };
 
@@ -7,6 +9,7 @@ pub(crate) trait Window {
     /// Splits the current window into two panes, one for the current session and another for the
     /// first window of given (stored) session.
     fn smart_split(&self, session_name: &str, session: &TmuxSession);
+    fn list_with_pane_details(&self, session_name: &str) -> Vec<TmuxWindow>;
 }
 
 struct PaneWindowName {
@@ -45,7 +48,7 @@ impl<'t, T: Tmux> WindowImpl<'t, T> {
 
     fn get_pane_window_names(&self) -> Vec<PaneWindowName> {
         self.tmux
-            .list_panes_with_format("#{pane_index}:#{@window-name}")
+            .list_current_window_panes("#{pane_index}:#{@window-name}")
             .iter()
             .map(|pane_info| {
                 let parts = pane_info
@@ -94,5 +97,51 @@ impl<'t, T: Tmux> Window for WindowImpl<'t, T> {
                 self.replace_pane(pane);
             }
         }
+    }
+
+    fn list_with_pane_details(&self, session_name: &str) -> Vec<TmuxWindow> {
+        let output = self.tmux.list_session_panes(session_name,
+            "#{window_index}:#{window_name}:#{window_layout}:#{pane_index}:#{pane_active}:#{pane_current_path}");
+
+        let mut windows: Vec<TmuxWindow> = Vec::new();
+        let mut map: HashMap<WindowName, usize> = HashMap::new();
+        let mut index: usize = 0;
+
+        for window in output {
+            let tokens = window.split(':').collect::<Vec<&str>>();
+            let window_index = tokens[0].parse::<usize>().unwrap();
+            let window_name = tokens[1];
+            let layout = tokens[2];
+            let pindex = tokens[3].parse::<usize>().unwrap();
+            let active = tokens[4] == "1";
+            let path = tokens[5].to_string();
+            let pane = TmuxPane {
+                index: pindex,
+                path,
+                active,
+                startup_command: None,
+                shell_command: None,
+                environment: None,
+            };
+
+            if let Some(i) = map.get(window_name) {
+                let window = &mut windows[*i];
+                window.panes.push(pane);
+            } else {
+                let window = TmuxWindow {
+                    index: window_index,
+                    name: window_name.to_string(),
+                    layout: layout.to_string(),
+                    panes: vec![pane],
+                    active: None,
+                };
+
+                windows.push(window);
+                map.insert(window_name.to_string(), index);
+                index += 1;
+            }
+        }
+
+        windows
     }
 }

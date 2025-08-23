@@ -6,7 +6,7 @@ use crate::{
     utils,
 };
 
-pub(crate) trait Sessions {
+pub(crate) trait SessionStorage {
     fn save(&self, sessions: TmuxSessions);
     fn restore_all(&self);
     fn restore(&self, session_name: &str) -> Option<bool>;
@@ -15,12 +15,12 @@ pub(crate) trait Sessions {
     fn convert(&self, output: &str);
 }
 
-pub(crate) struct SessionsImpl<'t, T: Tmux> {
+pub(crate) struct SessionStorageImpl<'t, T: Tmux> {
     filename: String,
     tmux: &'t T,
 }
 
-impl<'t, T: Tmux> SessionsImpl<'t, T> {
+impl<'t, T: Tmux> SessionStorageImpl<'t, T> {
     pub(crate) fn new(filename: &str, tmux: &'t T) -> Self {
         Self {
             filename: filename.to_string(),
@@ -160,7 +160,7 @@ impl<'t, T: Tmux> SessionsImpl<'t, T> {
     }
 }
 
-impl<'t, T: Tmux> Sessions for SessionsImpl<'t, T> {
+impl<'t, T: Tmux> SessionStorage for SessionStorageImpl<'t, T> {
     fn save(&self, sessions: TmuxSessions) {
         let toml_string =
             toml::to_string(&sessions).expect("Failed to serialize sessions into TOML.");
