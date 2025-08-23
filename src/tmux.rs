@@ -48,9 +48,16 @@ pub(crate) trait Tmux {
         y: &Option<usize>,
         command: &str,
     );
+    fn split_current_window(
+        &self,
+        horizontally: bool,
+        path: &str,
+        startup_command: &Option<String>,
+    );
     fn split_window(
         &self,
-        session_and_window_name: Option<SessionAndWindowName>,
+        session_name: &str,
+        window_name: &str,
         horizontally: bool,
         path: &str,
         startup_command: &Option<String>,
@@ -77,6 +84,38 @@ pub(crate) trait Tmux {
 }
 
 pub(crate) struct TmuxImpl;
+
+impl TmuxImpl {
+    fn split_window<F>(
+        &self,
+        horizontally: bool,
+        path: &str,
+        decorator_fn: F,
+        startup_command: &Option<String>,
+    ) where
+        F: FnOnce(&mut Command),
+    {
+        let mut command = Command::new("tmux");
+        command.arg("split-window");
+
+        if horizontally {
+            command.arg("-h");
+        } else {
+            command.arg("-v");
+        }
+
+        decorator_fn(&mut command);
+
+        // WTF is this NO_CD=1 doing here?
+        command.arg("-e").arg("NO_CD=1").arg("-c").arg(path);
+
+        if let Some(program) = startup_command {
+            command.arg(program);
+        }
+
+        command.status().expect("Failed to split a window.");
+    }
+}
 
 impl Tmux for TmuxImpl {
     fn list_sessions(&self, format: &str) -> Vec<String> {
@@ -295,39 +334,30 @@ impl Tmux for TmuxImpl {
         cmd.arg(command).status().expect("Failed to display popup.");
     }
 
-    fn split_window(
+    fn split_current_window(
         &self,
-        session_and_window_name: Option<SessionAndWindowName>,
         horizontally: bool,
         path: &str,
         startup_command: &Option<String>,
     ) {
-        // eprintln!(
-        //     "Splitting window '{}' in session '{}'.",
-        //     window_name, session_name
-        // );
-        let mut command = Command::new("tmux");
-        command.arg("split-window");
+        self.split_window(horizontally, path, |_| {}, startup_command);
+    }
 
-        if horizontally {
-            command.arg("-h");
-        } else {
-            command.arg("-v");
-        }
-
-        if let Some(s) = session_and_window_name {
+    fn split_window(
+        &self,
+        session_name: &str,
+        window_name: &str,
+        horizontally: bool,
+        path: &str,
+        startup_command: &Option<String>,
+    ) {
+        let decorator = |command: &mut Command| {
             command
                 .arg("-t")
-                .arg(format!("{}:{}", s.session_name, s.window_name));
-        }
+                .arg(format!("{}:{}", session_name, window_name));
+        };
 
-        command.arg("-e").arg("NO_CD=1").arg("-c").arg(path);
-
-        if let Some(program) = startup_command {
-            command.arg(program);
-        }
-
-        command.status().expect("Failed to split a window.");
+        self.split_window(horizontally, path, decorator, startup_command);
     }
 
     fn select_layout(&self, session_name: &str, window_name: &str, layout: &str) {

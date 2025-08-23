@@ -28,7 +28,7 @@ impl<'t, T: Tmux> WindowImpl<'t, T> {
 
     fn split_window(&self, pane: &TmuxPane) -> usize {
         self.tmux
-            .split_window(None, true, &pane.path, &pane.startup_command);
+            .split_current_window(true, &pane.path, &pane.startup_command);
 
         let pane_count = self.tmux.count_panes();
 

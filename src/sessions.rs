@@ -61,10 +61,8 @@ impl<'t, T: Tmux> SessionStorageImpl<'t, T> {
                         let command = tmux_window.startup_command_for_pane(i + 1);
 
                         self.tmux.split_window(
-                            Some(SessionAndWindowName {
-                                session_name: session_name.to_string(),
-                                window_name: tmux_window.name.clone(),
-                            }),
+                            session_name,
+                            &tmux_window.name,
                             true,
                             &pane.path,
                             &command,
@@ -111,10 +109,8 @@ impl<'t, T: Tmux> SessionStorageImpl<'t, T> {
                     for pane in tmux_window.panes.iter().skip(1) {
                         let command = tmux_window.startup_command_for_pane(i + 1);
                         self.tmux.split_window(
-                            Some(SessionAndWindowName {
-                                session_name: session_name.to_string(),
-                                window_name: tmux_window.name.clone(),
-                            }),
+                            session_name,
+                            &tmux_window.name,
                             true,
                             &pane.path,
                             &command,
