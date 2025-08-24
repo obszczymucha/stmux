@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap};
 
 use serde::{Deserialize, Serialize};
 
@@ -54,10 +54,19 @@ pub(crate) struct Layout {
     pub(crate) layout: String,
 }
 
-pub(crate) struct WindowDetails {
-    pub(crate) name: WindowName,
+#[derive(Debug, Clone)]
+pub(crate) struct StatusPane {
+    pub(crate) index: usize,
+    pub(crate) window_name: Option<String>,
     pub(crate) active: bool,
-    pub(crate) pane_window_name: Option<String>,
+}
+
+#[derive(Debug)]
+pub(crate) struct StatusWindow {
+    pub(crate) name: WindowName,
+    pub(crate) index: usize,
+    pub(crate) active: bool,
+    pub(crate) panes: Vec<StatusPane>,
 }
 
 impl TmuxWindow {

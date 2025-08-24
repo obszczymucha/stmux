@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    model::{TmuxPane, TmuxSession, TmuxWindow, WindowDetails, WindowName},
+    model::{StatusPane, StatusWindow, TmuxPane, TmuxSession, TmuxWindow, WindowName},
     tmux::Tmux,
 };
 
@@ -11,7 +11,7 @@ pub(crate) trait Window {
     fn smart_split(&self, session_name: &str, session: &TmuxSession);
     fn list_with_pane_details(&self, session_name: &str) -> Vec<TmuxWindow>;
     fn list_names_for_current_session(&self) -> Vec<WindowName>;
-    fn list_names_with_status_for_current_session(&self) -> Vec<WindowDetails>;
+    fn list_names_for_status(&self) -> Vec<StatusWindow>;
 }
 
 struct PaneWindowName {
@@ -218,31 +218,52 @@ impl<'t, T: Tmux> Window for WindowImpl<'t, T> {
         self.tmux.list_windows_for_current_session("#W")
     }
 
-    fn list_names_with_status_for_current_session(&self) -> Vec<WindowDetails> {
-        let lines = self
-            .tmux
-            .list_windows_for_current_session("#{window_name}:#{window_active}:#{window_panes}");
+    fn list_names_for_status(&self) -> Vec<StatusWindow> {
+        // We need to list panes, not windows, to get all panes in each window
+        let lines = self.tmux.list_current_session_panes(
+            "#{window_index}:#{window_active}:#W:#{pane_index}:#{@window-name}:#{pane_active}",
+        );
 
-        lines
-            .iter()
-            .map(|line| {
-                let mut parts = line.split(':');
-                let name = parts.next().unwrap().to_string();
-                let active = parts.next().unwrap() == "1";
-                let pane_count = parts.next().unwrap().parse::<usize>().ok().unwrap();
+        let mut windows: HashMap<usize, StatusWindow> = HashMap::new();
 
-                let pane_window_name = if pane_count > 1 {
-                    self.tmux.get_pane_option(2, "@window-name")
-                } else {
-                    None
-                };
+        for line in &lines {
+            let parts: Vec<&str> = line.split(':').collect();
 
-                WindowDetails {
-                    name,
-                    active,
-                    pane_window_name,
-                }
-            })
-            .collect()
+            if parts.len() < 6 {
+                continue;
+            }
+
+            let window_index = parts[0].parse::<usize>().unwrap_or(0);
+            let window_active = parts[1] == "1";
+            let window_name = parts[2].to_string();
+            let pane_index = parts[3].parse::<usize>().unwrap_or(0);
+            let pane_window_name = if parts[4].is_empty() {
+                None
+            } else {
+                Some(parts[4].to_string())
+            };
+
+            let pane_active = parts[5] == "1";
+
+            let status_pane = StatusPane {
+                index: pane_index,
+                window_name: pane_window_name,
+                active: pane_active,
+            };
+
+            windows
+                .entry(window_index)
+                .and_modify(|w| w.panes.push(status_pane.clone()))
+                .or_insert_with(|| StatusWindow {
+                    name: window_name.clone(),
+                    index: window_index,
+                    active: window_active,
+                    panes: vec![status_pane],
+                });
+        }
+
+        let mut result: Vec<StatusWindow> = windows.into_values().collect();
+        result.sort_by_key(|w| w.index);
+        result
     }
 }

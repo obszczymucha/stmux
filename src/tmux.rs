@@ -17,6 +17,7 @@ use crate::model::WindowDimension;
 #[automock]
 pub(crate) trait Tmux {
     fn list_sessions(&self, format: &str) -> Vec<String>;
+    fn list_current_session_panes(&self, format: &str) -> Vec<String>;
     fn list_session_panes(&self, session_name: &str, format: &str) -> Vec<String>;
     fn list_current_window_panes(&self, format: &str) -> Vec<String>;
     fn list_windows_for_current_session(&self, format: &str) -> Vec<String>;
@@ -78,7 +79,7 @@ pub(crate) trait Tmux {
     fn window_dimension(&self) -> Option<WindowDimension>;
     fn set_global(&self, option_name: &str, value: &str);
     fn current_window_index(&self) -> usize;
-    fn get_pane_option(&self, pane_index: usize, option_name: &str) -> Option<String>;
+    // fn get_pane_option(&self, pane_index: usize, option_name: &str) -> Option<String>;
     fn count_panes(&self) -> usize;
     fn set_pane_option_for_current_window(&self, pane_index: usize, name: &str, value: &str);
     // fn set_pane_option(
@@ -217,10 +218,23 @@ impl Tmux for TmuxImpl {
             .arg("-F")
             .arg(format)
             .output()
-            .expect("Failed to list tmux windows.");
+            .expect("Failed to list session panes.");
 
         let result = String::from_utf8_lossy(&output.stdout);
         result.lines().map(|s| s.to_string()).collect()
+    }
+
+    fn list_current_session_panes(&self, format: &str) -> Vec<String> {
+        let output = Command::new("tmux")
+            .arg("list-panes")
+            .arg("-s")
+            .arg("-F")
+            .arg(format)
+            .output()
+            .expect("Failed to list current session panes.");
+
+        let result = String::from_utf8_lossy(&output.stdout);
+        result.lines().map(|x| x.to_string()).collect()
     }
 
     fn list_current_window_panes(&self, format: &str) -> Vec<String> {
@@ -514,26 +528,26 @@ impl Tmux for TmuxImpl {
         id.trim().parse().expect("Failed to parse window index.")
     }
 
-    fn get_pane_option(&self, pane_index: usize, option_name: &str) -> Option<String> {
-        let window_name = Command::new("tmux")
-            .arg("show-option")
-            .arg("-t")
-            .arg(pane_index.to_string())
-            .arg("-p")
-            .arg("-v")
-            .arg(option_name)
-            .output()
-            .expect("Failed to get @window-name");
-
-        let result = String::from_utf8_lossy(&window_name.stdout);
-        let trimmed = result.trim();
-
-        if trimmed.is_empty() {
-            None
-        } else {
-            Some(trimmed.to_string())
-        }
-    }
+    // fn get_pane_option(&self, pane_index: usize, option_name: &str) -> Option<String> {
+    //     let window_name = Command::new("tmux")
+    //         .arg("show-option")
+    //         .arg("-t")
+    //         .arg(pane_index.to_string())
+    //         .arg("-p")
+    //         .arg("-v")
+    //         .arg(option_name)
+    //         .output()
+    //         .expect("Failed to get @window-name");
+    //
+    //     let result = String::from_utf8_lossy(&window_name.stdout);
+    //     let trimmed = result.trim();
+    //
+    //     if trimmed.is_empty() {
+    //         None
+    //     } else {
+    //         Some(trimmed.to_string())
+    //     }
+    // }
 
     fn count_panes(&self) -> usize {
         let output = Command::new("tmux")

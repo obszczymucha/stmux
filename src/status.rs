@@ -1,5 +1,5 @@
 use crate::{
-    model::WindowDetails,
+    model::{StatusPane, StatusWindow},
     session_name_file::SessionNameFile,
     tmux::Tmux,
     window::{Window, WindowImpl},
@@ -23,7 +23,29 @@ impl<'t, 'b, T: Tmux, B: SessionNameFile> StatusImpl<'t, 'b, T, B> {
 
 impl<'t, 'b, T: Tmux, B: SessionNameFile> Status for StatusImpl<'t, 'b, T, B> {
     fn get(&self) -> String {
-        fn current(session_name: &str, windows: &[WindowDetails]) -> String {
+        fn format_pane(w: &StatusWindow, p: &StatusPane) -> String {
+            let name = if w.panes.len() == 1 {
+                w.name.clone()
+            } else {
+                p.window_name.clone().unwrap_or(p.index.to_string())
+            };
+
+            if w.active && p.active {
+                format!("#[fg=#e0e0e0]{}#[fg=#9797aa]", name)
+            } else {
+                format!("#[fg=#9797aa]{}", name)
+            }
+        }
+
+        fn format_window(w: &StatusWindow) -> String {
+            w.panes
+                .iter()
+                .map(|p| format_pane(w, p))
+                .collect::<Vec<String>>()
+                .join("#[fg=#9797aa]|")
+        }
+
+        fn current(session_name: &str, windows: &[StatusWindow]) -> String {
             format!(
                 "{}{} {}",
                 "#[fg=#8a60ab]",
@@ -32,13 +54,9 @@ impl<'t, 'b, T: Tmux, B: SessionNameFile> Status for StatusImpl<'t, 'b, T, B> {
                     .iter()
                     .map(|w| {
                         if w.active {
-                            if let Some(pane_window_name) = &w.pane_window_name {
-                                format!("#[fg=#9797aa][#[fg=#e0e0e0]{}#[fg=#9797aa]|#[fg=#d0d0d0]{}#[fg=#9797aa]]", w.name, pane_window_name)
-                            } else {
-                                format!("#[fg=#9797aa][#[fg=#e0e0e0]{}#[fg=#9797aa]]", w.name)
-                            }
+                            format!("#[fg=#9797aa][{}#[fg=#9797aa]]", format_window(w))
                         } else {
-                            format!("#[fg=#9797aa]{}", w.name)
+                            format_window(w)
                         }
                     })
                     .collect::<Vec<String>>()
@@ -48,7 +66,7 @@ impl<'t, 'b, T: Tmux, B: SessionNameFile> Status for StatusImpl<'t, 'b, T, B> {
 
         let session_name = self.tmux.current_session_name();
         let window = WindowImpl::new(self.tmux);
-        let windows = window.list_names_with_status_for_current_session();
+        let windows = window.list_names_for_status();
         let bookmarks = self.bookmarks.read();
         let bookmark_names = bookmarks
             .iter()
