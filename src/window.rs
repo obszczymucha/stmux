@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, process::Command};
 
 use crate::{
     model::{StatusPane, StatusWindow, TmuxPane, TmuxSession, TmuxWindow, WindowName},
@@ -135,6 +135,19 @@ impl<'t, T: Tmux> Window for WindowImpl<'t, T> {
             .and_then(|window| window.panes.first())
         {
             let pane_window_names = self.get_pane_window_names();
+            let window_names = self.list_names_for_current_session();
+
+            if window_names.into_iter().any(|w| w == session_name) {
+                self.tmux.join_pane_to_current_window(session_name, 1);
+                // Can't hook unlinked-window-closed for some reason.
+                // So a workaround:
+                Command::new("stmux")
+                    .arg("status")
+                    .status()
+                    .expect("Failed to refresh status.");
+
+                return;
+            }
 
             if pane_window_names.len() == 1 {
                 let pane_index = self.split_window(pane);
