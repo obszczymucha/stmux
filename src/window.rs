@@ -28,6 +28,14 @@ impl<'t, T: Tmux> WindowImpl<'t, T> {
         Self { tmux }
     }
 
+    fn refresh_status(&self) {
+        Command::new("tmux")
+            .arg("refresh-client")
+            .arg("-S")
+            .status()
+            .expect("Couldn't refresh status.");
+    }
+
     fn split_window(&self, pane: &TmuxPane) -> usize {
         self.tmux
             .split_current_window(true, &pane.path, &pane.startup_command);
@@ -135,16 +143,14 @@ impl<'t, T: Tmux> Window for WindowImpl<'t, T> {
             .and_then(|window| window.panes.first())
         {
             let pane_window_names = self.get_pane_window_names();
-            let window_names = self.list_names_for_current_session();
+            let window_exists = {
+                let window_names = self.list_names_for_current_session();
+                window_names.into_iter().any(|w| w == session_name)
+            };
 
-            if window_names.into_iter().any(|w| w == session_name) {
+            if window_exists && pane_window_names.len() == 1 {
                 self.tmux.join_pane_to_current_window(session_name, 1);
-                // Can't hook unlinked-window-closed for some reason.
-                // So a workaround:
-                Command::new("stmux")
-                    .arg("status")
-                    .status()
-                    .expect("Failed to refresh status.");
+                self.refresh_status();
 
                 return;
             }
