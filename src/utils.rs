@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::model::TmuxSessions;
@@ -30,4 +31,12 @@ pub(crate) fn random_window_name() -> String {
         .subsec_nanos();
     let random_number = (nanos % 98) + 1;
     format!("win_{}", random_number)
+}
+
+// A temporary workaround for when hooks are not implemented in tmux yet.
+pub(crate) fn refresh_status() {
+    Command::new("stmux")
+        .arg("status")
+        .status()
+        .expect("Couldn't refresh status.");
 }

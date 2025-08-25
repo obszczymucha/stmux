@@ -1,9 +1,9 @@
-use std::{collections::HashMap, process::Command};
+use std::collections::HashMap;
 
 use crate::{
     model::{StatusPane, StatusWindow, TmuxPane, TmuxSession, TmuxWindow, WindowName},
     tmux::Tmux,
-    utils::random_window_name,
+    utils::{random_window_name, refresh_status},
 };
 
 pub(crate) trait Window {
@@ -27,14 +27,6 @@ pub(crate) struct WindowImpl<'t, T: Tmux> {
 impl<'t, T: Tmux> WindowImpl<'t, T> {
     pub(crate) fn new(tmux: &'t T) -> Self {
         Self { tmux }
-    }
-
-    fn refresh_status(&self) {
-        Command::new("tmux")
-            .arg("refresh-client")
-            .arg("-S")
-            .status()
-            .expect("Couldn't refresh status.");
     }
 
     fn split_window(&self, pane: &TmuxPane) -> usize {
@@ -151,7 +143,7 @@ impl<'t, T: Tmux> Window for WindowImpl<'t, T> {
 
             if window_exists && pane_window_names.len() == 1 {
                 self.tmux.join_pane_to_current_window(session_name, 1);
-                self.refresh_status();
+                refresh_status();
 
                 return;
             }
