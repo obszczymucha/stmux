@@ -99,6 +99,7 @@ pub(crate) trait Tmux {
     );
     fn rename_window_in_current_session(&self, old_name: &str, new_name: &str);
     fn join_pane_to_current_window(&self, window_name: &str, pane_index: usize);
+    fn select_pane(&self, index: usize);
 }
 
 pub(crate) struct TmuxImpl;
@@ -606,6 +607,15 @@ impl Tmux for TmuxImpl {
             .arg(format!("{}.{}", window_name, pane_index))
             .status()
             .expect("Failed to join pane to current window.");
+    }
+
+    fn select_pane(&self, index: usize) {
+        Command::new("tmux")
+            .arg("select-pane")
+            .arg("-t")
+            .arg(format!("{}", index))
+            .status()
+            .expect("Failed to select pane.");
     }
 
     // fn set_pane_option(

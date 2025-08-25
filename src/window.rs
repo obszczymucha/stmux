@@ -163,14 +163,7 @@ impl<'t, T: Tmux> Window for WindowImpl<'t, T> {
                 .filter(|p| p.window_name.is_some())
                 .find(|p| matches!(&p.window_name, Some(name) if name == session_name))
             {
-                self.tmux.display_message(
-                    format!(
-                    "#[fg=#e0e0e0,align=centre]Pane #[fg=#8a60ab]{}#[fg=#e0e0e0] is #[fg=#8a60ab]{}",
-                    pane.index,
-                    session_name
-                )
-                    .as_str(),
-                );
+                self.tmux.select_pane(pane.index);
                 return;
             }
 
