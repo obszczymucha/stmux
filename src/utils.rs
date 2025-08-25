@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::model::TmuxSessions;
 
@@ -20,4 +21,13 @@ pub(crate) fn merge(config_sessions: TmuxSessions, current_sessions: TmuxSession
     }
 
     sessions
+}
+
+pub(crate) fn random_window_name() -> String {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .subsec_nanos();
+    let random_number = (nanos % 98) + 1;
+    format!("win_{}", random_number)
 }

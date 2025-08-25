@@ -3,6 +3,7 @@ use std::{collections::HashMap, process::Command};
 use crate::{
     model::{StatusPane, StatusWindow, TmuxPane, TmuxSession, TmuxWindow, WindowName},
     tmux::Tmux,
+    utils::random_window_name,
 };
 
 pub(crate) trait Window {
@@ -61,7 +62,7 @@ impl<'t, T: Tmux> WindowImpl<'t, T> {
         let window_name = current_window_last_pane
             .window_name
             .clone()
-            .unwrap_or("princess_kenny".to_string());
+            .unwrap_or(random_window_name());
 
         let current_session_window_names = self.list_names_for_current_session();
 
