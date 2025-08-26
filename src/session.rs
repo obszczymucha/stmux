@@ -92,10 +92,12 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
             .unwrap_or("".to_string());
 
         let split_left_key = "alt-h";
+        let split_left_alt_key = "left";
         let split_right_key = "alt-l";
+        let split_right_alt_key = "right";
         let fzf_opts = format!(
-            "--no-multi --border --border-label \"{}\" {} --expect={} --expect={}",
-            popup_title, colors, split_left_key, split_right_key
+            "--no-multi --border --border-label \"{}\" {} --expect={} --expect={} --expect={} --expect={}",
+            popup_title, colors, split_left_key, split_left_alt_key, split_right_key, split_right_alt_key
         );
 
         // FIXME: Bundling the logic here is no good, we should pass what we want to do on select instead.
@@ -103,15 +105,15 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
             r#"echo -ne "\\e]12;{}\\a"; cat {} | fzf {} | {{
                 read -r key; read -r selection
 
-                if [[ "$key" == "{}" ]]; then
+                if [[ "$key" == "{}" || "$key" == "{}" ]]; then
                     stmux window smart-split left "$selection"
-                elif [[ "$key" == "{}" ]]; then
+                elif [[ "$key" == "{}" || "$key" == "{}" ]]; then
                     stmux window smart-split right "$selection"
                 else
                     stmux session select "$selection"
                 fi
             }}"#,
-            cursor_color, input_fifo_path, fzf_opts, split_left_key, split_right_key
+            cursor_color, input_fifo_path, fzf_opts, split_left_key, split_left_alt_key, split_right_key, split_right_alt_key
         );
 
         let tmux_command = format!(
