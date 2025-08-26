@@ -1,15 +1,16 @@
 use std::collections::HashMap;
 
 use crate::{
+    args::SplitType,
     model::{StatusPane, StatusWindow, TmuxPane, TmuxSession, TmuxWindow, WindowName},
-    tmux::Tmux,
+    tmux::{SplitWindowOptions, Tmux},
     utils::{random_window_name, refresh_status},
 };
 
 pub(crate) trait Window {
     /// Splits the current window into two panes, one for the current session and another for the
     /// first window of given (stored) session.
-    fn smart_split(&self, session_name: &str, session: &TmuxSession);
+    fn smart_split(&self, session_name: &str, session: &TmuxSession, split_type: &SplitType);
     fn list_with_pane_details(&self, session_name: &str) -> Vec<TmuxWindow>;
     fn list_names_for_current_session(&self) -> Vec<WindowName>;
     fn list_names_for_status(&self) -> Vec<StatusWindow>;
@@ -29,29 +30,47 @@ impl<'t, T: Tmux> WindowImpl<'t, T> {
         Self { tmux }
     }
 
-    fn split_window(&self, pane: &TmuxPane) -> usize {
-        self.tmux
-            .split_current_window(true, &pane.path, &pane.startup_command);
+    fn split_window(&self, pane: &TmuxPane, at_index: Option<usize>, before: bool) -> usize {
+        self.tmux.split_current_window(&SplitWindowOptions {
+            horizontally: true,
+            path: pane.path.clone(),
+            startup_command: pane.startup_command.clone(),
+            at_index,
+            before,
+        });
 
-        let pane_count = self.tmux.count_panes();
+        let pane_index = if let Some(pane_index) = at_index {
+            if before && pane_index == 1 {
+                1
+            } else if before {
+                pane_index - 1
+            } else {
+                pane_index + 1
+            }
+        } else {
+            match before {
+                true => 1,
+                false => self.tmux.count_panes(),
+            }
+        };
 
         if pane.startup_command.is_none()
             && let Some(shell_command) = &pane.shell_command
         {
             self.tmux
-                .send_keys_to_current_window(pane_count, shell_command);
+                .send_keys_to_current_window(pane_index, shell_command);
         }
 
-        pane_count
+        pane_index
     }
 
     fn replace_pane(
         &self,
         session_name: &str,
         pane_to_swap: &TmuxPane,
-        current_window_last_pane: &PaneWindowName,
+        current_pane: &PaneWindowName,
     ) {
-        let window_name = current_window_last_pane
+        let window_name = current_pane
             .window_name
             .clone()
             .unwrap_or(random_window_name());
@@ -62,6 +81,11 @@ impl<'t, T: Tmux> WindowImpl<'t, T> {
             .into_iter()
             .any(|w| w == session_name)
         {
+            if current_pane.index == 1 {
+                self.tmux
+                    .rename_window_in_current_session(&window_name, session_name);
+            }
+
             self.tmux.new_window_in_current_session(
                 window_name.as_str(),
                 &pane_to_swap.path,
@@ -83,16 +107,18 @@ impl<'t, T: Tmux> WindowImpl<'t, T> {
             }
 
             self.tmux
-                .swap_panes(current_window_last_pane.index, window_name.as_str(), 1);
-        } else {
+                .swap_panes(current_pane.index, window_name.as_str(), 1);
+
             self.tmux
-                .swap_panes(current_window_last_pane.index, session_name, 1);
+                .set_pane_option(&window_name, 1, "@window-name", &window_name);
+        } else {
+            self.tmux.swap_panes(current_pane.index, session_name, 1);
             self.tmux
                 .rename_window_in_current_session(session_name, window_name.as_str());
         }
 
         self.tmux.set_pane_option_for_current_window(
-            current_window_last_pane.index,
+            current_pane.index,
             "@window-name",
             session_name,
         );
@@ -129,7 +155,7 @@ impl<'t, T: Tmux> Window for WindowImpl<'t, T> {
     /// - Single pane: Creates a split within the current window.
     /// - Multiple panes: Creates a new window using the first pane from the `session`'s first window,
     ///   then swaps it with the current window's last pane.
-    fn smart_split(&self, session_name: &str, session: &TmuxSession) {
+    fn smart_split(&self, session_name: &str, session: &TmuxSession, split_type: &SplitType) {
         if let Some(pane) = session
             .windows
             .first()
@@ -142,14 +168,27 @@ impl<'t, T: Tmux> Window for WindowImpl<'t, T> {
             };
 
             if window_exists && pane_window_names.len() == 1 {
-                self.tmux.join_pane_to_current_window(session_name, 1);
-                refresh_status();
+                match split_type {
+                    SplitType::Right => {
+                        self.tmux
+                            .join_pane_to_current_window(session_name, 1, None, false)
+                    }
+                    SplitType::Left => {
+                        self.tmux
+                            .join_pane_to_current_window(session_name, 1, Some(1), true)
+                    }
+                }
 
+                refresh_status();
                 return;
             }
 
             if pane_window_names.len() == 1 {
-                let pane_index = self.split_window(pane);
+                let pane_index = match split_type {
+                    SplitType::Right => self.split_window(pane, None, false),
+                    SplitType::Left => self.split_window(pane, Some(1), true),
+                };
+
                 self.tmux.set_pane_option_for_current_window(
                     pane_index,
                     "@window-name",
@@ -167,8 +206,17 @@ impl<'t, T: Tmux> Window for WindowImpl<'t, T> {
                 return;
             }
 
-            if let Some(current_window_last_pane) = pane_window_names.last() {
-                self.replace_pane(session_name, pane, current_window_last_pane);
+            match split_type {
+                SplitType::Right => {
+                    if let Some(current_window_last_pane) = pane_window_names.last() {
+                        self.replace_pane(session_name, pane, current_window_last_pane);
+                    }
+                }
+                SplitType::Left => {
+                    if let Some(current_window_first_pane) = pane_window_names.first() {
+                        self.replace_pane(session_name, pane, current_window_first_pane);
+                    }
+                }
             }
         }
     }

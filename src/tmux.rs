@@ -14,6 +14,14 @@ use crate::model::WindowDimension;
 // other structs like Window/Session use this for more
 // sophisticated logic.
 
+pub(crate) struct SplitWindowOptions {
+    pub(crate) horizontally: bool,
+    pub(crate) path: String,
+    pub(crate) startup_command: Option<String>,
+    pub(crate) at_index: Option<usize>,
+    pub(crate) before: bool,
+}
+
 #[automock]
 pub(crate) trait Tmux {
     fn list_sessions(&self, format: &str) -> Vec<String>;
@@ -59,20 +67,8 @@ pub(crate) trait Tmux {
         y: &Option<usize>,
         command: &str,
     );
-    fn split_current_window(
-        &self,
-        horizontally: bool,
-        path: &str,
-        startup_command: &Option<String>,
-    );
-    fn split_window(
-        &self,
-        session_name: &str,
-        window_name: &str,
-        horizontally: bool,
-        path: &str,
-        startup_command: &Option<String>,
-    );
+    fn split_current_window(&self, options: &SplitWindowOptions);
+    fn split_window(&self, session_name: &str, window_name: &str, options: &SplitWindowOptions);
     fn select_layout(&self, session_name: &str, window_name: &str, layout: &str);
     fn send_keys_to_current_window(&self, pane_index: usize, keys: &str);
     fn send_keys(&self, session_name: &str, window_name: &str, pane_index: usize, keys: &str);
@@ -82,23 +78,22 @@ pub(crate) trait Tmux {
     // fn get_pane_option(&self, pane_index: usize, option_name: &str) -> Option<String>;
     fn count_panes(&self) -> usize;
     fn set_pane_option_for_current_window(&self, pane_index: usize, name: &str, value: &str);
-    // fn set_pane_option(
-    //     &self,
-    //     session_name: &str,
-    //     window_name: &str,
-    //     pane_index: usize,
-    //     name: &str,
-    //     value: &str,
-    // );
+    fn set_pane_option(&self, window_name: &str, pane_index: usize, name: &str, value: &str);
 
     fn swap_panes(
         &self,
+        current_window_pane_index: usize,
+        source_window_name: &str,
         source_pane_index: usize,
-        target_window_name: &str,
-        target_pane_index: usize,
     );
     fn rename_window_in_current_session(&self, old_name: &str, new_name: &str);
-    fn join_pane_to_current_window(&self, window_name: &str, pane_index: usize);
+    fn join_pane_to_current_window(
+        &self,
+        window_name: &str,
+        pane_index: usize,
+        at_index: Option<usize>,
+        before: bool,
+    );
     fn select_pane(&self, index: usize);
 }
 
@@ -134,19 +129,14 @@ impl TmuxImpl {
         command.status().expect("Failed to create new session.");
     }
 
-    fn split_window<F>(
-        &self,
-        horizontally: bool,
-        path: &str,
-        decorator_fn: F,
-        startup_command: &Option<String>,
-    ) where
+    fn split_window<F>(&self, options: &SplitWindowOptions, decorator_fn: F)
+    where
         F: FnOnce(&mut Command),
     {
         let mut command = Command::new("tmux");
         command.arg("split-window");
 
-        if horizontally {
+        if options.horizontally {
             command.arg("-h");
         } else {
             command.arg("-v");
@@ -154,10 +144,22 @@ impl TmuxImpl {
 
         decorator_fn(&mut command);
 
-        // WTF is this NO_CD=1 doing here?
-        command.arg("-e").arg("NO_CD=1").arg("-c").arg(path);
+        if let Some(at_index) = options.at_index {
+            command.arg("-t").arg(format!(".{}", at_index));
+        }
 
-        if let Some(program) = startup_command {
+        if options.before {
+            command.arg("-b");
+        }
+
+        // WTF is this NO_CD=1 doing here?
+        command
+            .arg("-e")
+            .arg("NO_CD=1")
+            .arg("-c")
+            .arg(&options.path);
+
+        if let Some(program) = &options.startup_command {
             command.arg(program);
         }
 
@@ -417,30 +419,18 @@ impl Tmux for TmuxImpl {
         cmd.arg(command).status().expect("Failed to display popup.");
     }
 
-    fn split_current_window(
-        &self,
-        horizontally: bool,
-        path: &str,
-        startup_command: &Option<String>,
-    ) {
-        self.split_window(horizontally, path, |_| {}, startup_command);
+    fn split_current_window(&self, options: &SplitWindowOptions) {
+        self.split_window(options, |_| {});
     }
 
-    fn split_window(
-        &self,
-        session_name: &str,
-        window_name: &str,
-        horizontally: bool,
-        path: &str,
-        startup_command: &Option<String>,
-    ) {
+    fn split_window(&self, session_name: &str, window_name: &str, options: &SplitWindowOptions) {
         let decorator = |command: &mut Command| {
             command
                 .arg("-t")
                 .arg(format!("{}:{}", session_name, window_name));
         };
 
-        self.split_window(horizontally, path, decorator, startup_command);
+        self.split_window(options, decorator);
     }
 
     fn select_layout(&self, session_name: &str, window_name: &str, layout: &str) {
@@ -573,17 +563,20 @@ impl Tmux for TmuxImpl {
 
     fn swap_panes(
         &self,
+        current_window_pane_index: usize,
+        source_window_name: &str,
         source_pane_index: usize,
-        target_window_name: &str,
-        target_pane_index: usize,
     ) {
         let current_window_index = self.current_window_index();
         Command::new("tmux")
             .arg("swap-pane")
             .arg("-s")
-            .arg(format!("{}.{}", current_window_index, source_pane_index))
+            .arg(format!("{}.{}", source_window_name, source_pane_index))
             .arg("-t")
-            .arg(format!("{}.{}", target_window_name, target_pane_index))
+            .arg(format!(
+                "{}.{}",
+                current_window_index, current_window_pane_index
+            ))
             .status()
             .expect("Failed to swap panes.");
     }
@@ -598,13 +591,30 @@ impl Tmux for TmuxImpl {
             .expect("Failed to rename window.");
     }
 
-    fn join_pane_to_current_window(&self, window_name: &str, pane_index: usize) {
-        Command::new("tmux")
+    fn join_pane_to_current_window(
+        &self,
+        window_name: &str,
+        pane_index: usize,
+        at_index: Option<usize>,
+        before: bool,
+    ) {
+        let mut command = Command::new("tmux");
+        command
             .arg("join-pane")
             .arg("-d")
             .arg("-h")
             .arg("-s")
-            .arg(format!("{}.{}", window_name, pane_index))
+            .arg(format!("{}.{}", window_name, pane_index));
+
+        if let Some(at_index) = at_index {
+            command.arg("-t").arg(format!(".{}", at_index));
+        }
+
+        if before {
+            command.arg("-b");
+        }
+
+        command
             .status()
             .expect("Failed to join pane to current window.");
     }
@@ -618,20 +628,13 @@ impl Tmux for TmuxImpl {
             .expect("Failed to select pane.");
     }
 
-    // fn set_pane_option(
-    //     &self,
-    //     session_name: &str,
-    //     window_name: &str,
-    //     pane_index: usize,
-    //     name: &str,
-    //     value: &str,
-    // ) {
-    //     let decorator = |command: &mut Command| {
-    //         command
-    //             .arg("-t")
-    //             .arg(format!("{}:{}.{}", session_name, window_name, pane_index));
-    //     };
-    //
-    //     self.set_pane_option(name, value, decorator);
-    // }
+    fn set_pane_option(&self, window_name: &str, pane_index: usize, name: &str, value: &str) {
+        let decorator = |command: &mut Command| {
+            command
+                .arg("-t")
+                .arg(format!("{}.{}", window_name, pane_index));
+        };
+
+        self.set_pane_option(name, value, decorator);
+    }
 }

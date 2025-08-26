@@ -2,7 +2,7 @@ use std::{collections::HashMap, fs, thread::sleep, time::Duration};
 
 use crate::{
     model::{Layout, SessionName, TmuxSession, TmuxSessions, TmuxWindows},
-    tmux::Tmux,
+    tmux::{SplitWindowOptions, Tmux},
     utils,
 };
 
@@ -57,9 +57,13 @@ impl<'t, T: Tmux> SessionStorageImpl<'t, T> {
                         self.tmux.split_window(
                             session_name,
                             &tmux_window.name,
-                            true,
-                            &pane.path,
-                            &pane.startup_command,
+                            &SplitWindowOptions {
+                                horizontally: true,
+                                path: pane.path.clone(),
+                                startup_command: pane.startup_command.clone(),
+                                at_index: None,
+                                before: false,
+                            },
                         );
 
                         if pane.startup_command.is_none()
@@ -101,9 +105,13 @@ impl<'t, T: Tmux> SessionStorageImpl<'t, T> {
                         self.tmux.split_window(
                             session_name,
                             &tmux_window.name,
-                            true,
-                            &pane.path,
-                            &command,
+                            &SplitWindowOptions {
+                                horizontally: true,
+                                path: pane.path.clone(),
+                                startup_command: command.clone(),
+                                at_index: None,
+                                before: false,
+                            },
                         );
 
                         if command.is_none()

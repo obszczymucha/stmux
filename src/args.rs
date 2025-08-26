@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Parser, Debug)]
 #[command(long_about = None, disable_help_flag = true, disable_help_subcommand = true)]
@@ -27,10 +27,7 @@ pub(crate) enum ConfigAction {
 pub(crate) enum SessionAction {
     /// Show a session picker for all managed sessions.
     #[clap(name = "find-all")]
-    FindAll {
-        #[arg(long)]
-        split: bool,
-    },
+    FindAll,
     /// Show a session picker for active sessions only.
     Find,
     /// Switch to or create a session.
@@ -102,9 +99,19 @@ pub(crate) enum BookmarkAction {
     Edit,
 }
 
+#[derive(ValueEnum, Clone, Debug)]
+pub(crate) enum SplitType {
+    Right,
+    Left,
+}
+
 #[derive(Subcommand, Debug)]
 pub(crate) enum WindowAction {
-    SmartSplit { session_name: String },
+    SmartSplit {
+        #[arg(value_enum)]
+        split_type: SplitType,
+        session_name: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]

@@ -46,7 +46,7 @@ fn run(config: &dyn Config, action: Action) {
             },
         },
         Action::Session { action } => match action {
-            SessionAction::FindAll { split } => {
+            SessionAction::FindAll => {
                 let tmux = TmuxImpl;
                 let sessions =
                     SessionStorageImpl::new(config.sessions_filename().as_str(), &tmux).load();
@@ -82,8 +82,7 @@ fn run(config: &dyn Config, action: Action) {
                 }
 
                 let session = SessionImpl::new(&tmux);
-                let title = format!("All Sessions{}", if split { " (split)" } else { "" });
-                session.find(session_names, title.as_str(), split);
+                session.find(session_names, "All Sessions");
             }
             SessionAction::Find => {
                 let tmux = TmuxImpl;
@@ -94,14 +93,14 @@ fn run(config: &dyn Config, action: Action) {
                     run(
                         config,
                         Action::Session {
-                            action: SessionAction::FindAll { split: false },
+                            action: SessionAction::FindAll,
                         },
                     );
                     return;
                 }
 
                 let session = SessionImpl::new(&tmux);
-                session.find(session_names, "Sessions", false);
+                session.find(session_names, "Sessions");
             }
             SessionAction::Select { session_name } => {
                 let tmux = TmuxImpl;
@@ -329,13 +328,13 @@ fn run(config: &dyn Config, action: Action) {
             status.set();
         }
         Action::Window { action } => match action {
-            WindowAction::SmartSplit { session_name } => {
+            WindowAction::SmartSplit { split_type, session_name } => {
                 let tmux = TmuxImpl;
                 let sessions = SessionStorageImpl::new(config.sessions_filename().as_str(), &tmux);
 
                 if let Some(session) = sessions.load().get(&session_name) {
                     let window = WindowImpl::new(&tmux);
-                    window.smart_split(&session_name, session);
+                    window.smart_split(&session_name, session, &split_type);
                 } else {
                     eprintln!("Session '{}' not found.", session_name);
                 }
