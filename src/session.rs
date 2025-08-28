@@ -97,7 +97,12 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
         let split_right_alt_key = "right";
         let fzf_opts = format!(
             "--no-multi --border --border-label \"{}\" {} --expect={} --expect={} --expect={} --expect={}",
-            popup_title, colors, split_left_key, split_left_alt_key, split_right_key, split_right_alt_key
+            popup_title,
+            colors,
+            split_left_key,
+            split_left_alt_key,
+            split_right_key,
+            split_right_alt_key
         );
 
         // FIXME: Bundling the logic here is no good, we should pass what we want to do on select instead.
@@ -113,7 +118,13 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
                     stmux session select "$selection"
                 fi
             }}"#,
-            cursor_color, input_fifo_path, fzf_opts, split_left_key, split_left_alt_key, split_right_key, split_right_alt_key
+            cursor_color,
+            input_fifo_path,
+            fzf_opts,
+            split_left_key,
+            split_left_alt_key,
+            split_right_key,
+            split_right_alt_key
         );
 
         let tmux_command = format!(
@@ -179,7 +190,9 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
     }
 
     fn list_names(&self) -> Vec<SessionName> {
-        self.tmux.list_sessions("#{session_name}")
+        self.tmux
+            .list_sessions("#{session_name}")
+            .unwrap_or_default()
     }
 
     fn list_other_session_names(&self) -> Vec<SessionName> {

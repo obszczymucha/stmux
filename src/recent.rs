@@ -150,7 +150,7 @@ mod next_tests {
         // Given
         let mut tmux = MockTmux::new();
         tmux.expect_list_sessions()
-            .returning(|_| vec!["a".into(), "b".into()].clone());
+            .returning(|_| Ok(vec!["a".into(), "b".into()].clone()));
 
         let mut recent_session_file = MockSessionNameFile::new();
         recent_session_file
@@ -171,7 +171,7 @@ mod next_tests {
         // Given
         let mut tmux = MockTmux::new();
         tmux.expect_list_sessions()
-            .returning(|_| vec!["a".into(), "c".into()].clone());
+            .returning(|_| Ok(vec!["a".into(), "c".into()].clone()));
 
         let mut recent_session_file = MockSessionNameFile::new();
         recent_session_file
@@ -192,7 +192,7 @@ mod next_tests {
         // Given
         let mut tmux = MockTmux::new();
         tmux.expect_list_sessions()
-            .returning(|_| vec!["a".into(), "b".into(), "c".into()].clone());
+            .returning(|_| Ok(vec!["a".into(), "b".into(), "c".into()].clone()));
 
         let mut recent_session_file = MockSessionNameFile::new();
         recent_session_file
@@ -221,7 +221,7 @@ mod previous_tests {
         // Given
         let mut tmux = MockTmux::new();
         tmux.expect_list_sessions()
-            .returning(|_| vec!["a".into(), "b".into(), "c".into()].clone());
+            .returning(|_| Ok(vec!["a".into(), "b".into(), "c".into()].clone()));
 
         let mut recent_session_file = MockSessionNameFile::new();
         recent_session_file
@@ -242,7 +242,7 @@ mod previous_tests {
         // Given
         let mut tmux = MockTmux::new();
         tmux.expect_list_sessions()
-            .returning(|_| vec!["a".into(), "c".into()].clone());
+            .returning(|_| Ok(vec!["a".into(), "c".into()].clone()));
 
         let mut recent_session_file = MockSessionNameFile::new();
         recent_session_file
@@ -263,7 +263,7 @@ mod previous_tests {
         // Given
         let mut tmux = MockTmux::new();
         tmux.expect_list_sessions()
-            .returning(|_| vec!["a".into(), "b".into(), "c".into()].clone());
+            .returning(|_| Ok(vec!["a".into(), "b".into(), "c".into()].clone()));
 
         let mut recent_session_file = MockSessionNameFile::new();
         recent_session_file

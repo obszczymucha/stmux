@@ -1,5 +1,6 @@
 mod args;
 mod bookmarks;
+mod command_builder;
 mod config;
 mod model;
 mod recent;
@@ -18,6 +19,7 @@ use args::{
 };
 use bookmarks::{Bookmarks, BookmarksImpl};
 use clap::Parser;
+use command_builder::CommandBuilderImpl;
 use config::Config;
 use model::{TmuxPane, TmuxWindow};
 use recent::{Recent, RecentImpl};
@@ -47,7 +49,7 @@ fn run(config: &dyn Config, action: Action) {
         },
         Action::Session { action } => match action {
             SessionAction::FindAll => {
-                let tmux = TmuxImpl;
+                let tmux = TmuxImpl::new(&CommandBuilderImpl);
                 let sessions =
                     SessionStorageImpl::new(config.sessions_filename().as_str(), &tmux).load();
                 let recent_sessions: &dyn SessionNameFile =
@@ -85,7 +87,7 @@ fn run(config: &dyn Config, action: Action) {
                 session.find(session_names, "All Sessions");
             }
             SessionAction::Find => {
-                let tmux = TmuxImpl;
+                let tmux = TmuxImpl::new(&CommandBuilderImpl);
                 let session = SessionImpl::new(&tmux);
                 let session_names = session.list_other_session_names();
 
@@ -103,20 +105,20 @@ fn run(config: &dyn Config, action: Action) {
                 session.find(session_names, "Sessions");
             }
             SessionAction::Select { session_name } => {
-                let tmux = TmuxImpl;
+                let tmux = TmuxImpl::new(&CommandBuilderImpl);
                 let session = SessionImpl::new(&tmux);
                 let sessions = SessionStorageImpl::new(config.sessions_filename().as_str(), &tmux);
 
                 session.select(session_name.as_str(), &sessions);
             }
             SessionAction::Save => {
-                let tmux = TmuxImpl;
+                let tmux = TmuxImpl::new(&CommandBuilderImpl);
                 let session = SessionImpl::new(&tmux);
                 let sessions = SessionStorageImpl::new(config.sessions_filename().as_str(), &tmux);
                 session.save(&sessions);
             }
             SessionAction::Delete { session_name } => {
-                let tmux = TmuxImpl;
+                let tmux = TmuxImpl::new(&CommandBuilderImpl);
                 let session = SessionImpl::new(&tmux);
                 let sessions = SessionStorageImpl::new(&config.sessions_filename(), &tmux);
                 session.delete(&session_name, &sessions);
@@ -130,7 +132,7 @@ fn run(config: &dyn Config, action: Action) {
                 startup_command,
                 shell_command,
             } => {
-                let tmux = TmuxImpl;
+                let tmux = TmuxImpl::new(&CommandBuilderImpl);
                 let session = SessionImpl::new(&tmux);
                 let sessions = SessionStorageImpl::new(&config.sessions_filename(), &tmux);
 
@@ -193,7 +195,7 @@ fn run(config: &dyn Config, action: Action) {
         },
         Action::Sessions { action } => match action {
             SessionsAction::Save { filename } => {
-                let tmux = TmuxImpl;
+                let tmux = TmuxImpl::new(&CommandBuilderImpl);
                 let file = filename.unwrap_or(config.sessions_filename());
                 let sessions = SessionStorageImpl::new(&file, &tmux);
                 let stored_sessions = sessions.load();
@@ -206,31 +208,35 @@ fn run(config: &dyn Config, action: Action) {
 
             SessionsAction::Restore { filename } => {
                 let file = filename.unwrap_or(config.sessions_filename());
-                let sessions = SessionStorageImpl::new(&file, &TmuxImpl);
+                let tmux = TmuxImpl::new(&CommandBuilderImpl);
+                let sessions = SessionStorageImpl::new(&file, &tmux);
                 sessions.restore_all();
             }
             SessionsAction::List => {
                 let file = config.sessions_filename();
-                let sessions = SessionStorageImpl::new(&file, &TmuxImpl);
+                let tmux = TmuxImpl::new(&CommandBuilderImpl);
+                let sessions = SessionStorageImpl::new(&file, &tmux);
 
                 for session_name in sessions.list() {
                     eprintln!("{}", session_name);
                 }
             }
             SessionsAction::Convert { filename } => {
-                let sessions = SessionStorageImpl::new(&config.sessions_filename(), &TmuxImpl);
+                let tmux = TmuxImpl::new(&CommandBuilderImpl);
+                let sessions = SessionStorageImpl::new(&config.sessions_filename(), &tmux);
                 sessions.convert(&filename);
             }
         },
         Action::RecentSession { action } => match action {
             RecentSessionAction::List => {
                 let file = SessionNameFileImpl::new(config.recent_sessions_filename().as_str());
-                let recent = RecentImpl::new(&TmuxImpl, &file);
+                let tmux = TmuxImpl::new(&CommandBuilderImpl);
+                let recent = RecentImpl::new(&tmux, &file);
 
                 recent.print()
             }
             RecentSessionAction::Next => {
-                let tmux = TmuxImpl;
+                let tmux = TmuxImpl::new(&CommandBuilderImpl);
                 let file = SessionNameFileImpl::new(config.recent_sessions_filename().as_str());
                 let recent = RecentImpl::new(&tmux, &file);
 
@@ -243,7 +249,7 @@ fn run(config: &dyn Config, action: Action) {
                 }
             }
             RecentSessionAction::Previous => {
-                let tmux = TmuxImpl;
+                let tmux = TmuxImpl::new(&CommandBuilderImpl);
                 let file = SessionNameFileImpl::new(config.recent_sessions_filename().as_str());
                 let recent = RecentImpl::new(&tmux, &file);
 
@@ -257,18 +263,21 @@ fn run(config: &dyn Config, action: Action) {
             }
             RecentSessionAction::Edit => {
                 let file = SessionNameFileImpl::new(config.recent_sessions_filename().as_str());
-                let recent = RecentImpl::new(&TmuxImpl, &file);
+                let tmux = TmuxImpl::new(&CommandBuilderImpl);
+                let recent = RecentImpl::new(&tmux, &file);
 
                 recent.edit(config);
             }
             RecentSessionAction::Add { session_name } => {
-                let tmux = &TmuxImpl;
+                let tmux = &TmuxImpl::new(&CommandBuilderImpl);
                 let name = session_name.unwrap_or(tmux.current_session_name());
                 let recent_file =
                     SessionNameFileImpl::new(config.recent_sessions_filename().as_str());
                 let recent = RecentImpl::new(tmux, &recent_file);
                 let sessions_file = config.sessions_filename();
-                let sessions = SessionStorageImpl::new(&sessions_file, &TmuxImpl).load();
+                let sessions =
+                    SessionStorageImpl::new(&sessions_file, &TmuxImpl::new(&CommandBuilderImpl))
+                        .load();
                 let session = sessions.get(&name);
 
                 recent.add(session, &name);
@@ -282,7 +291,7 @@ fn run(config: &dyn Config, action: Action) {
                 bookmarks.print();
             }
             BookmarkAction::Set => {
-                let tmux = TmuxImpl;
+                let tmux = TmuxImpl::new(&CommandBuilderImpl);
                 let file = SessionNameFileImpl::new(config.bookmarks_filename().as_str());
                 let bookmarks = BookmarksImpl::new(&file);
 
@@ -293,7 +302,7 @@ fn run(config: &dyn Config, action: Action) {
             BookmarkAction::Select { index, smart_focus } => {
                 let file = SessionNameFileImpl::new(config.bookmarks_filename().as_str());
                 let bookmarks = BookmarksImpl::new(&file);
-                let tmux = TmuxImpl;
+                let tmux = TmuxImpl::new(&CommandBuilderImpl);
                 let current_session_name = tmux.current_session_name();
 
                 if let Some(name) = bookmarks.select(index) {
@@ -317,19 +326,22 @@ fn run(config: &dyn Config, action: Action) {
                 let file = SessionNameFileImpl::new(config.bookmarks_filename().as_str());
                 let bookmarks = BookmarksImpl::new(&file);
 
-                bookmarks.edit(config, &TmuxImpl);
+                bookmarks.edit(config, &TmuxImpl::new(&CommandBuilderImpl));
                 run(config, Action::Status);
             }
         },
         Action::Status => {
-            let tmux = &TmuxImpl;
+            let tmux = &TmuxImpl::new(&CommandBuilderImpl);
             let file = SessionNameFileImpl::new(config.bookmarks_filename().as_str());
             let status = StatusImpl::new(tmux, &file);
             status.set();
         }
         Action::Window { action } => match action {
-            WindowAction::SmartSplit { split_type, session_name } => {
-                let tmux = TmuxImpl;
+            WindowAction::SmartSplit {
+                split_type,
+                session_name,
+            } => {
+                let tmux = TmuxImpl::new(&CommandBuilderImpl);
                 let sessions = SessionStorageImpl::new(config.sessions_filename().as_str(), &tmux);
 
                 if let Some(session) = sessions.load().get(&session_name) {

@@ -3,16 +3,10 @@ use std::process::Stdio;
 
 use mockall::automock;
 
+use crate::command_builder::CommandBuilder;
 use crate::model::EnvironmentVariable;
 use crate::model::TmuxWindow;
 use crate::model::WindowDimension;
-
-// Note to myself:
-// Should this be dum and just expose tmux cli api?
-// Right now there's a mixture of logic and the above.
-// Dunno yet. Going towards this being just a cli and
-// other structs like Window/Session use this for more
-// sophisticated logic.
 
 pub(crate) struct SplitWindowOptions {
     pub(crate) horizontally: bool,
@@ -24,7 +18,7 @@ pub(crate) struct SplitWindowOptions {
 
 #[automock]
 pub(crate) trait Tmux {
-    fn list_sessions(&self, format: &str) -> Vec<String>;
+    fn list_sessions(&self, format: &str) -> Result<Vec<String>, Vec<String>>;
     fn list_current_session_panes(&self, format: &str) -> Vec<String>;
     fn list_session_panes(&self, session_name: &str, format: &str) -> Vec<String>;
     fn list_current_window_panes(&self, format: &str) -> Vec<String>;
@@ -97,9 +91,15 @@ pub(crate) trait Tmux {
     fn select_pane(&self, index: usize);
 }
 
-pub(crate) struct TmuxImpl;
+pub(crate) struct TmuxImpl<'cb, CB: CommandBuilder> {
+    pub command_builder: &'cb CB,
+}
 
-impl TmuxImpl {
+impl<'cb, CB: CommandBuilder> TmuxImpl<'cb, CB> {
+    pub fn new(command_builder: &'cb CB) -> Self {
+        Self { command_builder }
+    }
+
     fn new_window<F>(
         &self,
         window_name: &str,
@@ -110,10 +110,10 @@ impl TmuxImpl {
     ) where
         F: FnOnce(&mut Command),
     {
-        let mut command = Command::new("tmux");
+        let command = &mut self.command_builder.new_command();
         command.arg("new-window");
 
-        decorator_fn(&mut command);
+        decorator_fn(command);
 
         command.arg("-n").arg(window_name).arg("-e").arg("NO_CD=1");
         command.arg("-c").arg(path);
@@ -133,7 +133,7 @@ impl TmuxImpl {
     where
         F: FnOnce(&mut Command),
     {
-        let mut command = Command::new("tmux");
+        let command = &mut self.command_builder.new_command();
         command.arg("split-window");
 
         if options.horizontally {
@@ -142,7 +142,7 @@ impl TmuxImpl {
             command.arg("-v");
         }
 
-        decorator_fn(&mut command);
+        decorator_fn(command);
 
         if let Some(at_index) = options.at_index {
             command.arg("-t").arg(format!(".{}", at_index));
@@ -170,9 +170,9 @@ impl TmuxImpl {
     where
         F: FnOnce(&mut Command),
     {
-        let mut command = Command::new("tmux");
+        let command = &mut self.command_builder.new_command();
         command.arg("send-keys");
-        decorator_fn(&mut command);
+        decorator_fn(command);
 
         command
             .arg(keys)
@@ -185,10 +185,10 @@ impl TmuxImpl {
     where
         F: FnOnce(&mut Command),
     {
-        let mut command = Command::new("tmux");
+        let command = &mut self.command_builder.new_command();
         command.arg("set").arg("-p");
 
-        decorator_fn(&mut command);
+        decorator_fn(command);
 
         command
             .arg(name)
@@ -198,23 +198,39 @@ impl TmuxImpl {
     }
 }
 
-impl Tmux for TmuxImpl {
-    fn list_sessions(&self, format: &str) -> Vec<String> {
-        let output = Command::new("tmux")
+impl<'cb, CB: CommandBuilder> Tmux for TmuxImpl<'cb, CB> {
+    fn list_sessions(&self, format: &str) -> Result<Vec<String>, Vec<String>> {
+        let output = &self
+            .command_builder
+            .new_command()
             .arg("list-sessions")
             .arg("-F")
             .arg(format)
             .output()
             .expect("Failed to list tmux sessions.");
 
-        String::from_utf8_lossy(&output.stdout)
+        let s = if output.status.success() {
+            &output.stdout
+        } else {
+            &output.stderr
+        };
+
+        let result = String::from_utf8_lossy(s)
             .lines()
             .map(|s| s.to_string())
-            .collect::<Vec<String>>()
+            .collect::<Vec<String>>();
+
+        if output.status.success() {
+            Ok(result)
+        } else {
+            Err(result)
+        }
     }
 
     fn list_session_panes(&self, session_name: &str, format: &str) -> Vec<String> {
-        let output = Command::new("tmux")
+        let output = &self
+            .command_builder
+            .new_command()
             .arg("list-panes")
             .arg("-s")
             .arg("-t")
@@ -229,7 +245,9 @@ impl Tmux for TmuxImpl {
     }
 
     fn list_current_session_panes(&self, format: &str) -> Vec<String> {
-        let output = Command::new("tmux")
+        let output = &self
+            .command_builder
+            .new_command()
             .arg("list-panes")
             .arg("-s")
             .arg("-F")
@@ -242,7 +260,9 @@ impl Tmux for TmuxImpl {
     }
 
     fn list_current_window_panes(&self, format: &str) -> Vec<String> {
-        let output = Command::new("tmux")
+        let output = &self
+            .command_builder
+            .new_command()
             .arg("list-panes")
             .arg("-F")
             .arg(format)
@@ -268,7 +288,7 @@ impl Tmux for TmuxImpl {
         //     session_name, name
         // );
 
-        let mut command = Command::new("tmux");
+        let command = &mut self.command_builder.new_command();
         command
             .arg("new-session")
             .arg("-d")
@@ -334,7 +354,9 @@ impl Tmux for TmuxImpl {
     }
 
     fn has_session(&self, session_name: &str) -> bool {
-        let output = Command::new("tmux")
+        let output = &self
+            .command_builder
+            .new_command()
             .arg("has-session")
             .arg("-t")
             .arg(format!("={}", session_name))
@@ -347,7 +369,8 @@ impl Tmux for TmuxImpl {
     }
 
     fn select_window(&self, session_name: &str, index: usize) {
-        Command::new("tmux")
+        self.command_builder
+            .new_command()
             .arg("select-window")
             .arg("-t")
             .arg(format!("{}:{}", session_name, index))
@@ -356,7 +379,9 @@ impl Tmux for TmuxImpl {
     }
 
     fn current_session_name(&self) -> String {
-        let stdout = Command::new("tmux")
+        let stdout = &self
+            .command_builder
+            .new_command()
             .arg("display-message")
             .arg("-p")
             .arg("#S")
@@ -364,11 +389,12 @@ impl Tmux for TmuxImpl {
             .expect("Failed to get current session name.")
             .stdout;
 
-        String::from_utf8_lossy(&stdout).trim().to_string()
+        String::from_utf8_lossy(stdout).trim().to_string()
     }
 
     fn select_session(&self, session_name: &str) {
-        Command::new("tmux")
+        self.command_builder
+            .new_command()
             .arg("switch-client")
             .arg("-t")
             .arg(session_name)
@@ -377,7 +403,8 @@ impl Tmux for TmuxImpl {
     }
 
     fn display_message(&self, message: &str) {
-        Command::new("tmux")
+        self.command_builder
+            .new_command()
             .arg("display-message")
             .arg(message)
             .status()
@@ -393,7 +420,7 @@ impl Tmux for TmuxImpl {
         y: &Option<usize>,
         command: &str,
     ) {
-        let mut cmd = Command::new("tmux");
+        let cmd = &mut self.command_builder.new_command();
         cmd.arg("display-popup")
             .arg("-E")
             .arg("-b")
@@ -438,7 +465,8 @@ impl Tmux for TmuxImpl {
         //     "Selecting layout '{}' for window '{}' in session '{}'.",
         //     layout, window_name, session_name
         // );
-        Command::new("tmux")
+        self.command_builder
+            .new_command()
             .arg("select-layout")
             .arg("-t")
             .arg(format!("{}:{}", session_name, window_name))
@@ -466,7 +494,9 @@ impl Tmux for TmuxImpl {
     }
 
     fn window_dimension(&self) -> Option<WindowDimension> {
-        let output = Command::new("tmux")
+        let output = &self
+            .command_builder
+            .new_command()
             .arg("display-message")
             .arg("-p")
             .arg("#{window_width}x#{window_height}")
@@ -487,7 +517,8 @@ impl Tmux for TmuxImpl {
     }
 
     fn set_global(&self, option_name: &str, value: &str) {
-        Command::new("tmux")
+        self.command_builder
+            .new_command()
             .arg("set")
             .arg("-g")
             .arg(option_name)
@@ -497,7 +528,9 @@ impl Tmux for TmuxImpl {
     }
 
     fn list_windows_for_current_session(&self, format: &str) -> Vec<String> {
-        let output = Command::new("tmux")
+        let output = &self
+            .command_builder
+            .new_command()
             .arg("list-windows")
             .arg("-F")
             .arg(format)
@@ -509,7 +542,9 @@ impl Tmux for TmuxImpl {
     }
 
     fn current_window_index(&self) -> usize {
-        let output = Command::new("tmux")
+        let output = &self
+            .command_builder
+            .new_command()
             .arg("display-message")
             .arg("-p")
             .arg("#I")
@@ -521,7 +556,7 @@ impl Tmux for TmuxImpl {
     }
 
     // fn get_pane_option(&self, pane_index: usize, option_name: &str) -> Option<String> {
-    //     let window_name = Command::new("tmux")
+    //     let window_name = &self.command_builder.new_command()
     //         .arg("show-option")
     //         .arg("-t")
     //         .arg(pane_index.to_string())
@@ -542,7 +577,9 @@ impl Tmux for TmuxImpl {
     // }
 
     fn count_panes(&self) -> usize {
-        let output = Command::new("tmux")
+        let output = &self
+            .command_builder
+            .new_command()
             .arg("display-message")
             .arg("-p")
             .arg("#{window_panes}")
@@ -568,7 +605,8 @@ impl Tmux for TmuxImpl {
         source_pane_index: usize,
     ) {
         let current_window_index = self.current_window_index();
-        Command::new("tmux")
+        self.command_builder
+            .new_command()
             .arg("swap-pane")
             .arg("-s")
             .arg(format!("{}.{}", source_window_name, source_pane_index))
@@ -582,7 +620,8 @@ impl Tmux for TmuxImpl {
     }
 
     fn rename_window_in_current_session(&self, old_name: &str, new_name: &str) {
-        Command::new("tmux")
+        self.command_builder
+            .new_command()
             .arg("rename-window")
             .arg("-t")
             .arg(old_name)
@@ -598,7 +637,7 @@ impl Tmux for TmuxImpl {
         at_index: Option<usize>,
         before: bool,
     ) {
-        let mut command = Command::new("tmux");
+        let command = &mut self.command_builder.new_command();
         command
             .arg("join-pane")
             .arg("-d")
@@ -620,7 +659,8 @@ impl Tmux for TmuxImpl {
     }
 
     fn select_pane(&self, index: usize) {
-        Command::new("tmux")
+        self.command_builder
+            .new_command()
             .arg("select-pane")
             .arg("-t")
             .arg(format!("{}", index))
@@ -636,5 +676,27 @@ impl Tmux for TmuxImpl {
         };
 
         self.set_pane_option(name, value, decorator);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::command_builder::TestCommandBuilderImpl;
+
+    use super::*;
+
+    #[test]
+    fn test_should_error_while_listing_sessions_on_a_non_running_server() {
+        let cb = TestCommandBuilderImpl::new("princesskenny");
+        let tmux = TmuxImpl::new(&cb);
+        let result = tmux.list_sessions("#W");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err[0].contains("error connecting"), "Was: {}", err[0]);
+        assert!(
+            err[0].contains("No such file or directory"),
+            "Was: {}",
+            err[0]
+        );
     }
 }
