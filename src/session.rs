@@ -181,6 +181,7 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
                 background: None,
                 no_recent_tracking: None,
                 windows,
+                options: vec![],
             };
 
             sessions.insert(name.to_string(), session);

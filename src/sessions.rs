@@ -28,17 +28,17 @@ impl<'t, T: Tmux> SessionStorageImpl<'t, T> {
         }
     }
 
-    fn process_session(
+    fn restore_session(
         &self,
         session_name: &str,
-        windows: &TmuxWindows,
+        session: &TmuxSession,
         windows_to_layout: &mut Vec<Layout>,
     ) {
-        if windows.is_empty() {
+        if session.windows.is_empty() {
             return;
         }
 
-        for (i, tmux_window) in windows.iter().enumerate() {
+        for (i, tmux_window) in session.windows.iter().enumerate() {
             if i == 0
                 && let Some(first_pane) = tmux_window.panes.first()
             {
@@ -131,6 +131,10 @@ impl<'t, T: Tmux> SessionStorageImpl<'t, T> {
             }
         }
 
+        for option in &session.options {
+            self.tmux.set_session_option(session_name, option);
+        }
+
         self.tmux.select_window(session_name, 1)
     }
 
@@ -167,10 +171,9 @@ impl<'t, T: Tmux> SessionStorage for SessionStorageImpl<'t, T> {
 
         for (name, session) in sessions {
             let non_numeric = !utils::is_numeric(name.as_str());
-            let windows = session.windows;
 
-            if !windows.is_empty() && non_numeric && !self.tmux.has_session(name.as_str()) {
-                self.process_session(name.as_str(), &windows, &mut windows_to_layout);
+            if !session.windows.is_empty() && non_numeric && !self.tmux.has_session(name.as_str()) {
+                self.restore_session(name.as_str(), &session, &mut windows_to_layout);
             }
         }
 
@@ -195,11 +198,10 @@ impl<'t, T: Tmux> SessionStorage for SessionStorageImpl<'t, T> {
 
         sessions.get(session_name).map(|session| {
             let mut windows_to_layout = Vec::new();
-            let windows = &session.windows;
-            self.process_session(session_name, windows, &mut windows_to_layout);
+            self.restore_session(session_name, session, &mut windows_to_layout);
             self.restore_layouts(&windows_to_layout, 300);
 
-            if !windows.is_empty()
+            if !session.windows.is_empty()
                 && let Some(background) = session.background
             {
                 return background;
@@ -227,6 +229,7 @@ impl<'t, T: Tmux> SessionStorage for SessionStorageImpl<'t, T> {
                             background: None,
                             no_recent_tracking: None,
                             windows,
+                            options: vec![],
                         },
                     )
                 })

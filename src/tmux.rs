@@ -5,6 +5,7 @@ use mockall::automock;
 
 use crate::command_builder::CommandBuilder;
 use crate::model::EnvironmentVariable;
+use crate::model::TmuxOption;
 use crate::model::TmuxWindow;
 use crate::model::WindowDimension;
 
@@ -73,6 +74,7 @@ pub(crate) trait Tmux {
     fn count_panes(&self) -> usize;
     fn set_pane_option_for_current_window(&self, pane_index: usize, name: &str, value: &str);
     fn set_pane_option(&self, window_name: &str, pane_index: usize, name: &str, value: &str);
+    fn set_session_option(&self, session_name: &str, option: &TmuxOption);
 
     fn swap_panes(
         &self,
@@ -676,6 +678,19 @@ impl<'cb, CB: CommandBuilder> Tmux for TmuxImpl<'cb, CB> {
         };
 
         self.set_pane_option(name, value, decorator);
+    }
+
+    fn set_session_option(&self, session_name: &str, option: &TmuxOption) {
+        let command = &mut self.command_builder.new_command();
+        command
+            .arg("set")
+            .arg("-s")
+            .arg("-t")
+            .arg(session_name)
+            .arg(&option.name)
+            .arg(&option.value)
+            .status()
+            .expect("Failed to set session option.");
     }
 }
 

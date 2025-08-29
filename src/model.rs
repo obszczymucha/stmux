@@ -3,10 +3,20 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub(crate) struct NameValue {
+    pub(crate) name: String,
+    pub(crate) value: String,
+}
+
+pub(crate) type TmuxOption = NameValue;
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub(crate) struct TmuxSession {
     pub(crate) background: Option<bool>,         // tmux -d
     pub(crate) no_recent_tracking: Option<bool>, // Won't be included in stmux recent next/previous.
     pub(crate) windows: Vec<TmuxWindow>,
+    #[serde(default)]
+    pub(crate) options: Vec<TmuxOption>,
 }
 
 pub(crate) type SessionName = String;
@@ -33,11 +43,7 @@ pub(crate) struct TmuxPane {
     pub(crate) environment: Vec<EnvironmentVariable>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub(crate) struct EnvironmentVariable {
-    pub(crate) name: String,
-    pub(crate) value: String,
-}
+pub(crate) type EnvironmentVariable = NameValue;
 
 pub(crate) type TmuxSessions = HashMap<SessionName, TmuxSession>;
 pub(crate) type TmuxWindows = Vec<TmuxWindow>;
