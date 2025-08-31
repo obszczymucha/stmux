@@ -684,7 +684,6 @@ impl<'cb, CB: CommandBuilder> Tmux for TmuxImpl<'cb, CB> {
         let command = &mut self.command_builder.new_command();
         command
             .arg("set")
-            .arg("-s")
             .arg("-t")
             .arg(session_name)
             .arg(&option.name)
