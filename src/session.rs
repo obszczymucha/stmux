@@ -16,7 +16,7 @@ use crate::window::{Window, WindowImpl};
 const FZF_DEFAULT_OPTS: &str = "--bind=alt-q:close,alt-j:down,alt-k:up,alt-u:page-up,alt-d:page-down,tab:accept --color=fg:#cdd6f4,header:#f38ba8,info:#cba6f7,pointer:#f5e0dc --color=marker:#b4befe,fg+:#cdd6f4,prompt:#cba6f7,hl+:#f38ba8 --color=selected-bg:#45475a";
 
 pub(crate) trait Session {
-    fn find(&self, session_names: Vec<SessionName>, title: &str);
+    fn find(&self, session_names: Vec<SessionName>, title: Option<String>);
     fn select(&self, name: &str, sessions: &dyn SessionStorage);
     fn save(&self, sessions: &dyn SessionStorage);
     fn delete(&self, session_name: &str, sessions: &dyn SessionStorage);
@@ -37,11 +37,11 @@ impl<'t, T: Tmux> SessionImpl<'t, T> {
 }
 
 impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
-    fn find(&self, session_names: Vec<SessionName>, title: &str) {
+    fn find(&self, session_names: Vec<SessionName>, title: Option<String>) {
         let window_dimension = self.tmux.window_dimension();
         let input_fifo_path = "/tmp/stmux_fzf_input.fifo";
-        let popup_title = format!(" {} ", title);
-        let title_len = popup_title.len() + 4;
+        let popup_title = title.map(|t| format!(" {} ", t));
+        let title_len = popup_title.as_ref().map_or(0, |t| t.len() + 4);
         let width = session_names
             .iter()
             .map(|item| item.len())
@@ -89,7 +89,7 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
         let (x_pos, y_pos) = if let Some(cursor_pos) = self.tmux.get_cursor_position() {
             (
                 format!("-x {} ", cursor_pos.x - 4),
-                format!("-y {} ", cursor_pos.y + height as i32 - 1)
+                format!("-y {} ", cursor_pos.y + height as i32 - 1),
             )
         } else {
             // Fallback to center positioning if cursor position unavailable
@@ -102,13 +102,19 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
             ("".to_string(), y)
         };
 
+        let border_label = if let Some(title) = popup_title {
+            format!(" --border-label \"{}\" ", title)
+        } else {
+            "".to_string()
+        };
+
         let split_left_key = "alt-h";
         let split_left_alt_key = "left";
         let split_right_key = "alt-l";
         let split_right_alt_key = "right";
         let fzf_opts = format!(
-            "--no-multi --layout=reverse --border --border-label \"{}\" {} --expect={} --expect={} --expect={} --expect={}",
-            popup_title,
+            "--no-multi --layout=reverse --border --border-label-pos bottom{} {} --expect={} --expect={} --expect={} --expect={}",
+            border_label,
             colors,
             split_left_key,
             split_left_alt_key,

@@ -84,7 +84,7 @@ fn run(config: &dyn Config, action: Action) {
                 }
 
                 let session = SessionImpl::new(&tmux);
-                session.find(session_names, "All Sessions");
+                session.find(session_names, None);
             }
             SessionAction::Find => {
                 let tmux = TmuxImpl::new(&CommandBuilderImpl);
@@ -102,7 +102,7 @@ fn run(config: &dyn Config, action: Action) {
                 }
 
                 let session = SessionImpl::new(&tmux);
-                session.find(session_names, "Sessions");
+                session.find(session_names, Some("Sessions".to_string()));
             }
             SessionAction::Select { session_name } => {
                 let tmux = TmuxImpl::new(&CommandBuilderImpl);
