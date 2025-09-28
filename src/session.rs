@@ -48,7 +48,7 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
             .max()
             .unwrap_or(title_len)
             + 6;
-        let max_height = 10;
+        let max_height = 5;
         let mut popup_width = max(width, title_len);
 
         if session_names.len() > max_height && width >= title_len {
@@ -84,19 +84,30 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
         ];
 
         let colors = colors_table.join(" ");
-        let y = window_dimension
-            .map(|dimension| {
-                let pos = dimension.height / 2 - 1;
-                format!("-y {} ", pos)
-            })
-            .unwrap_or("".to_string());
+
+        // Get cursor position and position popup at cursor
+        let (x_pos, y_pos) = if let Some(cursor_pos) = self.tmux.get_cursor_position() {
+            (
+                format!("-x {} ", cursor_pos.x - 4),
+                format!("-y {} ", cursor_pos.y + height as i32 - 1)
+            )
+        } else {
+            // Fallback to center positioning if cursor position unavailable
+            let y = window_dimension
+                .map(|dimension| {
+                    let pos = dimension.height / 2 - 1;
+                    format!("-y {} ", pos)
+                })
+                .unwrap_or("".to_string());
+            ("".to_string(), y)
+        };
 
         let split_left_key = "alt-h";
         let split_left_alt_key = "left";
         let split_right_key = "alt-l";
         let split_right_alt_key = "right";
         let fzf_opts = format!(
-            "--no-multi --border --border-label \"{}\" {} --expect={} --expect={} --expect={} --expect={}",
+            "--no-multi --layout=reverse --border --border-label \"{}\" {} --expect={} --expect={} --expect={} --expect={}",
             popup_title,
             colors,
             split_left_key,
@@ -128,8 +139,9 @@ impl<'t, T: Tmux> Session for SessionImpl<'t, T> {
         );
 
         let tmux_command = format!(
-            "tmux display-popup -E -B {}-e 'FZF_DEFAULT_OPTS={}' -w {} -h {} '{}'",
-            y,
+            "tmux display-popup -E -B {}{}-e 'FZF_DEFAULT_OPTS={}' -w {} -h {} '{}'",
+            x_pos,
+            y_pos,
             std::env::var("FZF_DEFAULT_OPTS").unwrap_or(FZF_DEFAULT_OPTS.to_string()),
             popup_width,
             height,

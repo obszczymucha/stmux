@@ -5,6 +5,7 @@ use mockall::automock;
 
 use crate::command_builder::CommandBuilder;
 use crate::model::EnvironmentVariable;
+use crate::model::Position;
 use crate::model::TmuxOption;
 use crate::model::TmuxWindow;
 use crate::model::WindowDimension;
@@ -91,6 +92,7 @@ pub(crate) trait Tmux {
         before: bool,
     );
     fn select_pane(&self, index: usize);
+    fn get_cursor_position(&self) -> Option<Position>;
 }
 
 pub(crate) struct TmuxImpl<'cb, CB: CommandBuilder> {
@@ -690,6 +692,27 @@ impl<'cb, CB: CommandBuilder> Tmux for TmuxImpl<'cb, CB> {
             .arg(&option.value)
             .status()
             .expect("Failed to set session option.");
+    }
+
+    fn get_cursor_position(&self) -> Option<Position> {
+        let output = &self
+            .command_builder
+            .new_command()
+            .arg("display-message")
+            .arg("-p")
+            .arg("#{cursor_x},#{cursor_y}")
+            .output()
+            .expect("Failed to get cursor position.");
+
+        let position_str = String::from_utf8_lossy(&output.stdout);
+        position_str
+            .trim()
+            .split_once(',')
+            .and_then(|(x_str, y_str)| {
+                let x = x_str.parse::<i32>().ok()?;
+                let y = y_str.parse::<i32>().ok()?;
+                Some(Position { x, y })
+            })
     }
 }
 

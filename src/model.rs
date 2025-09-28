@@ -54,6 +54,12 @@ pub(crate) struct WindowDimension {
     pub(crate) height: usize,
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct Position {
+    pub(crate) x: i32,
+    pub(crate) y: i32,
+}
+
 pub(crate) struct Layout {
     pub(crate) session_name: SessionName,
     pub(crate) window_name: WindowName,
