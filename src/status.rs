@@ -5,6 +5,11 @@ use crate::{
     window::{Window, WindowImpl},
 };
 
+const ACTIVE_SESSION_COLOR: &str = "#[fg=#8a60ba]";
+const INACTIVE_SESSION_COLOR: &str = "#[fg=#574d62]";
+const ACTIVE_SESSION_COLON_COLOR: &str = "#[fg=#8e78a5]";
+const INACTIVE_SESSION_COLON_COLOR: &str = "#[fg=#8e78a5]";
+
 pub(crate) trait Status {
     fn get(&self) -> String;
     fn set(&self);
@@ -48,7 +53,7 @@ impl<'t, 'b, T: Tmux, B: SessionNameFile> Status for StatusImpl<'t, 'b, T, B> {
         fn current(session_name: &str, windows: &[StatusWindow]) -> String {
             format!(
                 "{}{} {}",
-                "#[fg=#8a60ab]",
+                ACTIVE_SESSION_COLOR,
                 session_name,
                 windows
                     .iter()
@@ -64,6 +69,7 @@ impl<'t, 'b, T: Tmux, B: SessionNameFile> Status for StatusImpl<'t, 'b, T, B> {
             )
         }
 
+        let active_session_names = self.tmux.list_sessions("#S").unwrap();
         let session_name = self.tmux.current_session_name();
         let window = WindowImpl::new(self.tmux);
         let windows = window.list_names_for_status();
@@ -72,6 +78,12 @@ impl<'t, 'b, T: Tmux, B: SessionNameFile> Status for StatusImpl<'t, 'b, T, B> {
             .iter()
             .enumerate()
             .map(|(i, v)| {
+                let (color, colon_color) = if active_session_names.contains(v) {
+                    (ACTIVE_SESSION_COLOR, ACTIVE_SESSION_COLON_COLOR)
+                } else {
+                    (INACTIVE_SESSION_COLOR, INACTIVE_SESSION_COLON_COLOR)
+                };
+
                 if v == &session_name {
                     let index = if i == 0 {
                         format!("{}", i + 1)
@@ -81,7 +93,7 @@ impl<'t, 'b, T: Tmux, B: SessionNameFile> Status for StatusImpl<'t, 'b, T, B> {
 
                     format!(
                         "{}{}{}:{}{} ",
-                        "#[fg=#8a60ba]",
+                        ACTIVE_SESSION_COLOR,
                         index,
                         "#[fg=#af9fbf]",
                         "#[fg=#e0e0e0]",
@@ -90,9 +102,9 @@ impl<'t, 'b, T: Tmux, B: SessionNameFile> Status for StatusImpl<'t, 'b, T, B> {
                 } else {
                     format!(
                         "{}{}{}:{}{}",
-                        "#[fg=#8a60ba]",
+                        color,
                         i + 1,
-                        "#[fg=#af9fbf]",
+                        colon_color,
                         "#[fg=#75707a]",
                         v
                     )
