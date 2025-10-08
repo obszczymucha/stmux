@@ -56,7 +56,7 @@ impl<'s, S: SessionNameFile> Bookmarks for BookmarksImpl<'s, S> {
             .max()
             .unwrap_or(17);
 
-        let popup_width = max(width + 6, 18);
+        let popup_width = max(width + 6, 17);
         let popup_height = 7;
         let y = tmux.window_dimension().map(|d| d.height / 2 - 1);
 
