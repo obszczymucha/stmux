@@ -11,6 +11,7 @@ mod status;
 mod tmux;
 mod utils;
 mod window;
+mod status_config;
 use std::collections::HashSet;
 
 use args::{
@@ -29,8 +30,9 @@ use sessions::{SessionStorage, SessionStorageImpl};
 use status::{Status, StatusImpl};
 use tmux::{Tmux, TmuxImpl};
 use window::WindowImpl;
+use status_config::StatusConfigFileImpl;
 
-use crate::{args::WindowAction, window::Window};
+use crate::{args::WindowAction, status_config::StatusConfigFile, window::Window};
 
 fn run(config: &dyn Config, action: Action) {
     match action {
@@ -332,8 +334,10 @@ fn run(config: &dyn Config, action: Action) {
         },
         Action::Status => {
             let tmux = &TmuxImpl::new(&CommandBuilderImpl);
-            let file = SessionNameFileImpl::new(config.bookmarks_filename().as_str());
-            let status = StatusImpl::new(tmux, &file);
+            let session_file = SessionNameFileImpl::new(config.bookmarks_filename().as_str());
+            let status_file = StatusConfigFileImpl::new(config.status_config_filename().as_str());
+            let status_config = status_file.load();
+            let status = StatusImpl::new(tmux, &session_file, &status_config);
             status.set();
         }
         Action::Window { action } => match action {

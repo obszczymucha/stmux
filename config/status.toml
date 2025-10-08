@@ -1,0 +1,28 @@
+[colors.inactive]
+session_number = "#[fg=#574d62]"
+number_separator = "#[fg=#8e78a5]"
+session_name = "#[fg=#75707a]"
+
+[colors.active]
+session_number = "#[fg=#8a60ba]"
+number_separator = "#[fg=#8e78a5]"
+session_name = "#[fg=#8a60ba]"
+
+[colors.selected]
+session_number = "#[fg=#8a60ba]"
+number_separator = "#[fg=#af9fbf]"
+session_name = "#[fg=#8a60ba]"
+window_before = "#[fg=#9797aa]"
+active_pane = "#[fg=#e0e0e0]"
+pane_separator = "#[fg=#9797aa]"
+inactive_pane = "#[fg=#9797aa]"
+window_after = "#[fg=#9797aa]"
+
+[style]
+number_separator = ":"
+window_before = "["
+pane_separator = "|"
+window_after = "]"
+bookmark_separator = " "
+selected_bookmark_separator = "  "
+

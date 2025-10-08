@@ -1,34 +1,35 @@
 use crate::{
     model::{StatusPane, StatusWindow},
     session_name_file::SessionNameFile,
+    status_config::StatusConfig,
     tmux::Tmux,
     window::{Window, WindowImpl},
 };
-
-const ACTIVE_SESSION_COLOR: &str = "#[fg=#8a60ba]";
-const INACTIVE_SESSION_COLOR: &str = "#[fg=#574d62]";
-const ACTIVE_SESSION_COLON_COLOR: &str = "#[fg=#8e78a5]";
-const INACTIVE_SESSION_COLON_COLOR: &str = "#[fg=#8e78a5]";
 
 pub(crate) trait Status {
     fn get(&self) -> String;
     fn set(&self);
 }
 
-pub(crate) struct StatusImpl<'t, 'b, T: Tmux, B: SessionNameFile> {
+pub(crate) struct StatusImpl<'t, 'b, 'c, T: Tmux, B: SessionNameFile> {
     tmux: &'t T,
     bookmarks: &'b B,
+    config: &'c StatusConfig,
 }
 
-impl<'t, 'b, T: Tmux, B: SessionNameFile> StatusImpl<'t, 'b, T, B> {
-    pub(crate) fn new(tmux: &'t T, bookmarks: &'b B) -> Self {
-        Self { tmux, bookmarks }
+impl<'t, 'b, 'c, T: Tmux, B: SessionNameFile> StatusImpl<'t, 'b, 'c, T, B> {
+    pub(crate) fn new(tmux: &'t T, bookmarks: &'b B, config: &'c StatusConfig) -> Self {
+        Self {
+            tmux,
+            bookmarks,
+            config,
+        }
     }
 }
 
-impl<'t, 'b, T: Tmux, B: SessionNameFile> Status for StatusImpl<'t, 'b, T, B> {
+impl<'t, 'b, 'c, T: Tmux, B: SessionNameFile> Status for StatusImpl<'t, 'b, 'c, T, B> {
     fn get(&self) -> String {
-        fn format_pane(w: &StatusWindow, p: &StatusPane) -> String {
+        fn format_pane(w: &StatusWindow, p: &StatusPane, c: &StatusConfig) -> String {
             let name = if w.panes.len() == 1 {
                 w.name.clone()
             } else {
@@ -36,32 +37,45 @@ impl<'t, 'b, T: Tmux, B: SessionNameFile> Status for StatusImpl<'t, 'b, T, B> {
             };
 
             if w.active && p.active {
-                format!("#[fg=#e0e0e0]{}#[fg=#9797aa]", name)
+                format!("{}{}", c.colors.selected.active_pane, name)
             } else {
-                format!("#[fg=#9797aa]{}", name)
+                format!("{}{}", c.colors.selected.inactive_pane, name)
             }
         }
 
-        fn format_window(w: &StatusWindow) -> String {
+        fn format_window(w: &StatusWindow, c: &StatusConfig) -> String {
             w.panes
                 .iter()
-                .map(|p| format_pane(w, p))
+                .map(|p| format_pane(w, p, c))
                 .collect::<Vec<String>>()
-                .join("#[fg=#9797aa]|")
+                .join(
+                    format!(
+                        "{}{}",
+                        c.colors.selected.pane_separator, c.style.pane_separator
+                    )
+                    .as_str(),
+                )
         }
 
-        fn current(session_name: &str, windows: &[StatusWindow]) -> String {
+        fn current(session_name: &str, windows: &[StatusWindow], c: &StatusConfig) -> String {
             format!(
                 "{}{} {}",
-                ACTIVE_SESSION_COLOR,
+                c.colors.active.session_name,
                 session_name,
                 windows
                     .iter()
                     .map(|w| {
                         if w.active {
-                            format!("#[fg=#9797aa][{}#[fg=#9797aa]]", format_window(w))
+                            format!(
+                                "{}{}{}{}{}",
+                                c.colors.selected.window_before,
+                                c.style.window_before,
+                                format_window(w, c),
+                                c.colors.selected.window_after,
+                                c.style.window_after
+                            )
                         } else {
-                            format_window(w)
+                            format_window(w, c)
                         }
                     })
                     .collect::<Vec<String>>()
@@ -79,9 +93,15 @@ impl<'t, 'b, T: Tmux, B: SessionNameFile> Status for StatusImpl<'t, 'b, T, B> {
             .enumerate()
             .map(|(i, v)| {
                 let (color, colon_color) = if active_session_names.contains(v) {
-                    (ACTIVE_SESSION_COLOR, ACTIVE_SESSION_COLON_COLOR)
+                    (
+                        self.config.colors.active.session_number.as_str(),
+                        self.config.colors.active.number_separator.as_str(),
+                    )
                 } else {
-                    (INACTIVE_SESSION_COLOR, INACTIVE_SESSION_COLON_COLOR)
+                    (
+                        self.config.colors.inactive.session_number.as_str(),
+                        self.config.colors.inactive.number_separator.as_str(),
+                    )
                 };
 
                 if v == &session_name {
@@ -92,12 +112,12 @@ impl<'t, 'b, T: Tmux, B: SessionNameFile> Status for StatusImpl<'t, 'b, T, B> {
                     };
 
                     format!(
-                        "{}{}{}:{}{} ",
-                        ACTIVE_SESSION_COLOR,
+                        "{}{}{}{}{} ",
+                        self.config.colors.selected.session_number,
                         index,
-                        "#[fg=#af9fbf]",
-                        "#[fg=#e0e0e0]",
-                        current(v, &windows)
+                        self.config.colors.selected.number_separator,
+                        self.config.style.number_separator,
+                        current(v, &windows, self.config)
                     )
                 } else {
                     format!(
@@ -105,7 +125,7 @@ impl<'t, 'b, T: Tmux, B: SessionNameFile> Status for StatusImpl<'t, 'b, T, B> {
                         color,
                         i + 1,
                         colon_color,
-                        "#[fg=#75707a]",
+                        self.config.colors.inactive.session_name,
                         v
                     )
                 }
@@ -116,7 +136,7 @@ impl<'t, 'b, T: Tmux, B: SessionNameFile> Status for StatusImpl<'t, 'b, T, B> {
         format!(
             "{}{}",
             if !bookmarks.contains(&session_name) {
-                format!("{}  ", current(&session_name, &windows))
+                format!("{}  ", current(&session_name, &windows, self.config))
             } else {
                 "".to_string()
             },

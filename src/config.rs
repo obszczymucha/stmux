@@ -3,6 +3,7 @@ use mockall::automock;
 use std::{fs, path::PathBuf};
 
 const CONFIG_LOCATION: &str = ".config/stmux";
+const STATUS_CONFIG_FILENAME: &str = "status.toml";
 const SESSIONS_FILENAME: &str = "sessions.toml";
 const RECENT_SESSIONS_FILENAME: &str = "recent_sessions";
 const BOOKMARKS_FILENAME: &str = "bookmarks";
@@ -11,6 +12,7 @@ const NEOVIM_CONFIG_FILENAME: &str = "nvim-config.lua";
 #[automock]
 pub(crate) trait Config {
     fn create_dir(&self);
+    fn status_config_filename(&self) -> String;
     fn sessions_filename(&self) -> String;
     fn recent_sessions_filename(&self) -> String;
     fn bookmarks_filename(&self) -> String;
@@ -43,6 +45,10 @@ impl Config for ConfigImpl {
         if !config_dir.is_dir() {
             fs::create_dir_all(&config_dir).expect("Failed to create config directory.");
         }
+    }
+
+    fn status_config_filename(&self) -> String {
+        ConfigImpl::filename_at_config(STATUS_CONFIG_FILENAME)
     }
 
     fn sessions_filename(&self) -> String {
