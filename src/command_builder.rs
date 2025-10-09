@@ -20,6 +20,7 @@ pub(crate) struct TestCommandBuilderImpl {
 #[cfg(test)]
 impl TestCommandBuilderImpl {
     #[cfg(test)]
+    #[allow(dead_code)]
     pub(crate) fn new(socket: &str) -> Self {
         Self {
             socket: socket.to_string(),
@@ -27,6 +28,7 @@ impl TestCommandBuilderImpl {
     }
 
     #[cfg(test)]
+    #[allow(dead_code)]
     pub(crate) fn kill_server(&mut self) {
         let cmd = &mut self.new_command();
         cmd.arg("kill-server")

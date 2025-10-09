@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Parser, Debug)]
-#[command(long_about = None, disable_help_flag = true, disable_help_subcommand = true)]
+#[command(long_about = None, disable_help_flag = false, disable_help_subcommand = true)]
 pub struct Args {
     #[command(subcommand)]
     pub(crate) action: Action,
@@ -140,5 +140,8 @@ pub(crate) enum Action {
         #[command(subcommand)]
         action: WindowAction,
     },
-    Status,
+    Status {
+        #[arg(long)]
+        theme: Option<String>,
+    }
 }

@@ -8,10 +8,10 @@ mod session;
 mod session_name_file;
 mod sessions;
 mod status;
+mod status_config;
 mod tmux;
 mod utils;
 mod window;
-mod status_config;
 use std::collections::HashSet;
 
 use args::{
@@ -28,9 +28,9 @@ use session::{Session, SessionImpl};
 use session_name_file::{SessionNameFile, SessionNameFileImpl};
 use sessions::{SessionStorage, SessionStorageImpl};
 use status::{Status, StatusImpl};
+use status_config::StatusConfigFileImpl;
 use tmux::{Tmux, TmuxImpl};
 use window::WindowImpl;
-use status_config::StatusConfigFileImpl;
 
 use crate::{args::WindowAction, status_config::StatusConfigFile, window::Window};
 
@@ -298,7 +298,7 @@ fn run(config: &dyn Config, action: Action) {
                 let bookmarks = BookmarksImpl::new(&file);
 
                 if bookmarks.set(&tmux) {
-                    run(config, Action::Status);
+                    run(config, Action::Status { theme: None });
                 }
             }
             BookmarkAction::Select { index, smart_focus } => {
@@ -329,13 +329,17 @@ fn run(config: &dyn Config, action: Action) {
                 let bookmarks = BookmarksImpl::new(&file);
 
                 bookmarks.edit(config, &TmuxImpl::new(&CommandBuilderImpl));
-                run(config, Action::Status);
+                run(config, Action::Status { theme: None });
             }
         },
-        Action::Status => {
+        Action::Status { theme } => {
             let tmux = &TmuxImpl::new(&CommandBuilderImpl);
             let session_file = SessionNameFileImpl::new(config.bookmarks_filename().as_str());
-            let status_file = StatusConfigFileImpl::new(config.status_config_filename().as_str());
+            let status_filename = match theme {
+                Some(filename) => filename,
+                None => config.status_config_filename().as_str().to_owned(),
+            };
+            let status_file = StatusConfigFileImpl::new(&status_filename);
             let status_config = status_file.load();
             let status = StatusImpl::new(tmux, &session_file, &status_config);
             status.set();

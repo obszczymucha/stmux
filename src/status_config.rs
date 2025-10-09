@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::ErrorKind;
+use std::process;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub(crate) struct StatusConfig {
@@ -74,7 +76,20 @@ impl StatusConfigFile for StatusConfigFileImpl {
             Ok(content) => toml::from_str(&content).unwrap_or_else(|error| {
                 panic!("Failed to parse {}: {}.", &self.filename, error.message())
             }),
-            Err(e) => panic!("Failed to read status config file: {}", e),
+            Err(e) => {
+                match e.kind() {
+                    ErrorKind::NotFound => {
+                        eprintln!("Status config file '{}' does not exist.", &self.filename);
+                    }
+                    _ => {
+                        eprintln!(
+                            "Failed to read status config file '{}': {}",
+                            &self.filename, e
+                        );
+                    }
+                }
+                process::exit(1);
+            }
         }
     }
 }
