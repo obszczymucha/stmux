@@ -60,7 +60,7 @@ impl<'t, 'b, 'c, T: Tmux, B: SessionNameFile> Status for StatusImpl<'t, 'b, 'c, 
         fn current(session_name: &str, windows: &[StatusWindow], c: &StatusConfig) -> String {
             format!(
                 "{}{} {}",
-                c.colors.active.session_name,
+                c.colors.selected.session_name,
                 session_name,
                 windows
                     .iter()
