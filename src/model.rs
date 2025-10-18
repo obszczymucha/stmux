@@ -41,6 +41,7 @@ pub(crate) struct TmuxPane {
     pub(crate) shell_command: Option<String>,
     #[serde(default)]
     pub(crate) environment: Vec<EnvironmentVariable>,
+    pub(crate) name: Option<String>
 }
 
 pub(crate) type EnvironmentVariable = NameValue;

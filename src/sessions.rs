@@ -66,11 +66,23 @@ impl<'t, T: Tmux> SessionStorageImpl<'t, T> {
                             },
                         );
 
+                        if let Some(name) = &pane.name {
+                            self.tmux.set_pane_option_for_current_window(
+                                i + 1,
+                                "@window-name",
+                                name,
+                            );
+                        };
+
                         if pane.startup_command.is_none()
                             && let Some(shell_command) = &pane.shell_command
                         {
-                            self.tmux
-                                .send_keys(session_name, &tmux_window.name, i + 1, shell_command);
+                            self.tmux.send_keys(
+                                session_name,
+                                &tmux_window.name,
+                                i + 1,
+                                shell_command,
+                            );
                         }
                     }
 
@@ -114,11 +126,23 @@ impl<'t, T: Tmux> SessionStorageImpl<'t, T> {
                             },
                         );
 
+                        if let Some(name) = &pane.name {
+                            self.tmux.set_pane_option_for_current_window(
+                                i + 1,
+                                "@window-name",
+                                name,
+                            );
+                        };
+
                         if command.is_none()
                             && let Some(shell_command) = &pane.shell_command
                         {
-                            self.tmux
-                                .send_keys(session_name, &tmux_window.name, i + 1, shell_command);
+                            self.tmux.send_keys(
+                                session_name,
+                                &tmux_window.name,
+                                i + 1,
+                                shell_command,
+                            );
                         }
                     }
 

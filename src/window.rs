@@ -244,6 +244,7 @@ impl<'t, T: Tmux> Window for WindowImpl<'t, T> {
                 startup_command: None,
                 shell_command: None,
                 environment: vec![],
+                name: None,
             };
 
             if let Some(i) = map.get(window_name) {
