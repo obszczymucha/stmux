@@ -70,7 +70,7 @@ impl<'t, T: Tmux> SessionStorageImpl<'t, T> {
                             && let Some(shell_command) = &pane.shell_command
                         {
                             self.tmux
-                                .send_keys(session_name, &tmux_window.name, i, shell_command);
+                                .send_keys(session_name, &tmux_window.name, i + 1, shell_command);
                         }
                     }
 
@@ -118,7 +118,7 @@ impl<'t, T: Tmux> SessionStorageImpl<'t, T> {
                             && let Some(shell_command) = &pane.shell_command
                         {
                             self.tmux
-                                .send_keys(session_name, &tmux_window.name, i, shell_command);
+                                .send_keys(session_name, &tmux_window.name, i + 1, shell_command);
                         }
                     }
 
