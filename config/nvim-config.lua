@@ -17,9 +17,9 @@ local release = vim.loop.os_uname().release
 ---@diagnostic disable-next-line: lowercase-global
 is_wsl = release:match( "microsoft" ) and true or release:match( "WSL" ) and true or false
 
-vim.keymap.set( "n", "q", ":wq!<CR>", { silent = true } )
-vim.keymap.set( "n", "<Esc>", ":wq!<CR>", { silent = true } )
-vim.keymap.set( "n", "<A-q>", ":wq!<CR>", { silent = true } )
+vim.keymap.set( "n", "q", ":silent! wq!<CR>", { silent = true } )
+vim.keymap.set( "n", "<Esc>", ":silent! wq!<CR>", { silent = true } )
+vim.keymap.set( "n", "<A-q>", ":silent! wq!<CR>", { silent = true } )
 vim.keymap.set( "n", "<A-j>", "j", { silent = true } )
 vim.keymap.set( "n", "<A-k>", "k", { silent = true } )
 vim.keymap.set( "n", ":", function() end, { silent = true } )
