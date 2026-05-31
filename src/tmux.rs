@@ -12,7 +12,7 @@ use crate::model::WindowDimension;
 
 pub(crate) struct SplitWindowOptions {
     pub(crate) horizontally: bool,
-    pub(crate) path: String,
+    pub(crate) path: Option<String>,
     pub(crate) startup_command: Option<String>,
     pub(crate) at_index: Option<usize>,
     pub(crate) before: bool,
@@ -35,7 +35,7 @@ pub(crate) trait Tmux {
     fn new_window_in_current_session(
         &self,
         window_name: &str,
-        path: &str,
+        path: &Option<String>,
         environment: &[EnvironmentVariable],
         startup_command: &Option<String>,
         background: bool,
@@ -44,7 +44,7 @@ pub(crate) trait Tmux {
         &self,
         session_name: &str,
         window_name: &str,
-        path: &str,
+        path: &Option<String>,
         environment: &[EnvironmentVariable],
         startup_command: &Option<String>,
         background: bool,
@@ -71,17 +71,20 @@ pub(crate) trait Tmux {
     fn window_dimension(&self) -> Option<WindowDimension>;
     fn set_global(&self, option_name: &str, value: &str);
     fn current_window_index(&self) -> usize;
-    // fn get_pane_option(&self, pane_index: usize, option_name: &str) -> Option<String>;
+    fn get_pane_option(&self, pane_index: &str, option_name: &str) -> Option<String>;
     fn count_panes(&self) -> usize;
     fn set_pane_option_for_current_window(&self, pane_index: usize, name: &str, value: &str);
     fn set_pane_option(&self, window_name: &str, pane_index: usize, name: &str, value: &str);
+    fn set_current_window_pane_option(&self, pane_index: usize, name: &str, value: &str);
     fn set_session_option(&self, session_name: &str, option: &TmuxOption);
+    fn set_window_option(&self, window_name: &str, option: &TmuxOption);
 
     fn swap_panes(
         &self,
-        current_window_pane_index: usize,
         source_window_name: &str,
         source_pane_index: usize,
+        target_window_name: &str,
+        target_pane_index: usize,
     );
     fn rename_window_in_current_session(&self, old_name: &str, new_name: &str);
     fn join_pane_to_current_window(
@@ -93,6 +96,15 @@ pub(crate) trait Tmux {
     );
     fn select_pane(&self, index: usize);
     fn get_cursor_position(&self) -> Option<Position>;
+    fn break_pane(&self, pane_index: usize, window_name: Option<String>);
+    fn window_exists(&self, window_name: &str) -> bool;
+    fn get_str(&self, message: &str) -> String;
+    fn get_str_opt(&self, message: &str) -> Option<String>;
+    fn raw<'a>(&self, args: Vec<&'a str>);
+    fn raw_str<'a>(&self, args: Vec<&'a str>) -> String;
+    fn raw_str_opt<'a>(&self, args: Vec<&'a str>) -> Option<String>;
+    fn raw_vec<'a>(&self, args: Vec<&'a str>) -> Vec<String>;
+    fn get_str_raw<'a>(&self, args: Vec<&'a str>) -> String;
 }
 
 pub(crate) struct TmuxImpl<'cb, CB: CommandBuilder> {
@@ -107,7 +119,7 @@ impl<'cb, CB: CommandBuilder> TmuxImpl<'cb, CB> {
     fn new_window<F>(
         &self,
         window_name: &str,
-        path: &str,
+        path: &Option<String>,
         environment: &[EnvironmentVariable],
         startup_command: &Option<String>,
         decorator_fn: F,
@@ -120,7 +132,10 @@ impl<'cb, CB: CommandBuilder> TmuxImpl<'cb, CB> {
         decorator_fn(command);
 
         command.arg("-n").arg(window_name).arg("-e").arg("NO_CD=1");
-        command.arg("-c").arg(path);
+
+        if let Some(path) = path {
+            command.arg("-c").arg(path);
+        }
 
         for env in environment.iter() {
             command.arg("-e").arg(format!("{}={}", env.name, env.value));
@@ -157,11 +172,11 @@ impl<'cb, CB: CommandBuilder> TmuxImpl<'cb, CB> {
         }
 
         // WTF is this NO_CD=1 doing here?
-        command
-            .arg("-e")
-            .arg("NO_CD=1")
-            .arg("-c")
-            .arg(&options.path);
+        command.arg("-e").arg("NO_CD=1");
+
+        if let Some(p) = &options.path {
+            command.arg("-c").arg(p);
+        }
 
         if let Some(program) = &options.startup_command {
             command.arg(program);
@@ -323,7 +338,7 @@ impl<'cb, CB: CommandBuilder> Tmux for TmuxImpl<'cb, CB> {
     fn new_window_in_current_session(
         &self,
         window_name: &str,
-        path: &str,
+        path: &Option<String>,
         environment: &[EnvironmentVariable],
         startup_command: &Option<String>,
         background: bool,
@@ -341,7 +356,7 @@ impl<'cb, CB: CommandBuilder> Tmux for TmuxImpl<'cb, CB> {
         &self,
         session_name: &str,
         window_name: &str,
-        path: &str,
+        path: &Option<String>,
         environment: &[EnvironmentVariable],
         startup_command: &Option<String>,
         background: bool,
@@ -559,26 +574,28 @@ impl<'cb, CB: CommandBuilder> Tmux for TmuxImpl<'cb, CB> {
         id.trim().parse().expect("Failed to parse window index.")
     }
 
-    // fn get_pane_option(&self, pane_index: usize, option_name: &str) -> Option<String> {
-    //     let window_name = &self.command_builder.new_command()
-    //         .arg("show-option")
-    //         .arg("-t")
-    //         .arg(pane_index.to_string())
-    //         .arg("-p")
-    //         .arg("-v")
-    //         .arg(option_name)
-    //         .output()
-    //         .expect("Failed to get @window-name");
-    //
-    //     let result = String::from_utf8_lossy(&window_name.stdout);
-    //     let trimmed = result.trim();
-    //
-    //     if trimmed.is_empty() {
-    //         None
-    //     } else {
-    //         Some(trimmed.to_string())
-    //     }
-    // }
+    fn get_pane_option(&self, pane_index: &str, option_name: &str) -> Option<String> {
+        let window_name = &self
+            .command_builder
+            .new_command()
+            .arg("show-option")
+            .arg("-t")
+            .arg(pane_index)
+            .arg("-p")
+            .arg("-v")
+            .arg(option_name)
+            .output()
+            .expect("Failed to get @window-name");
+
+        let result = String::from_utf8_lossy(&window_name.stdout);
+        let trimmed = result.trim();
+
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    }
 
     fn count_panes(&self) -> usize {
         let output = &self
@@ -604,21 +621,18 @@ impl<'cb, CB: CommandBuilder> Tmux for TmuxImpl<'cb, CB> {
 
     fn swap_panes(
         &self,
-        current_window_pane_index: usize,
         source_window_name: &str,
         source_pane_index: usize,
+        target_window_name: &str,
+        target_pane_index: usize,
     ) {
-        let current_window_index = self.current_window_index();
         self.command_builder
             .new_command()
             .arg("swap-pane")
             .arg("-s")
             .arg(format!("{}.{}", source_window_name, source_pane_index))
             .arg("-t")
-            .arg(format!(
-                "{}.{}",
-                current_window_index, current_window_pane_index
-            ))
+            .arg(format!("{}.{}", target_window_name, target_pane_index))
             .status()
             .expect("Failed to swap panes.");
     }
@@ -682,12 +696,33 @@ impl<'cb, CB: CommandBuilder> Tmux for TmuxImpl<'cb, CB> {
         self.set_pane_option(name, value, decorator);
     }
 
+    fn set_current_window_pane_option(&self, pane_index: usize, name: &str, value: &str) {
+        let decorator = |command: &mut Command| {
+            command.arg("-t").arg(format!(".{}", pane_index));
+        };
+
+        self.set_pane_option(name, value, decorator);
+    }
+
     fn set_session_option(&self, session_name: &str, option: &TmuxOption) {
         let command = &mut self.command_builder.new_command();
         command
             .arg("set")
             .arg("-t")
             .arg(session_name)
+            .arg(&option.name)
+            .arg(&option.value)
+            .status()
+            .expect("Failed to set session option.");
+    }
+
+    fn set_window_option(&self, window_name: &str, option: &TmuxOption) {
+        let command = &mut self.command_builder.new_command();
+        command
+            .arg("set")
+            .arg("-w")
+            .arg("-t")
+            .arg(format!(":{}", window_name))
             .arg(&option.name)
             .arg(&option.value)
             .status()
@@ -713,6 +748,137 @@ impl<'cb, CB: CommandBuilder> Tmux for TmuxImpl<'cb, CB> {
                 let y = y_str.parse::<i32>().ok()?;
                 Some(Position { x, y })
             })
+    }
+
+    fn break_pane(&self, pane_index: usize, window_name: Option<String>) {
+        let command = &mut self.command_builder.new_command();
+
+        command
+            .arg("break-pane")
+            .arg("-s")
+            .arg(format!("{}", pane_index))
+            .arg("-d")
+            .arg("-a");
+
+        if let Some(name) = window_name {
+            command.arg("-n").arg(name);
+        }
+
+        command.status().expect("Failed to break pane.");
+    }
+
+    fn window_exists(&self, window_name: &str) -> bool {
+        let output = &self
+            .command_builder
+            .new_command()
+            .arg("list-windows")
+            .arg("-F")
+            .arg("#{window_name}")
+            .output()
+            .expect("Failed to list windows.");
+
+        let result = String::from_utf8_lossy(&output.stdout);
+        result.lines().any(|line| line == window_name)
+    }
+
+    fn get_str(&self, message: &str) -> String {
+        let output = &self
+            .command_builder
+            .new_command()
+            .arg("display-message")
+            .arg("-p")
+            .arg(message)
+            .output()
+            .expect("Failed to display message.");
+
+        let result = String::from_utf8_lossy(&output.stdout);
+        result.trim().to_string()
+    }
+
+    fn get_str_opt(&self, message: &str) -> Option<String> {
+        let output = &self
+            .command_builder
+            .new_command()
+            .arg("display-message")
+            .arg("-p")
+            .arg(message)
+            .output()
+            .expect("Failed to display message.");
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let result = stdout.trim().to_string();
+
+        if result.is_empty() {
+            None
+        } else {
+            Some(result)
+        }
+    }
+
+    fn raw(&self, args: Vec<&str>) {
+        let command = &mut self.command_builder.new_command();
+
+        for arg in args {
+            command.arg(arg);
+        }
+
+        command.status().expect("Failed to run command.");
+    }
+
+    fn raw_str(&self, args: Vec<&str>) -> String {
+        let command = &mut self.command_builder.new_command();
+
+        for arg in args {
+            command.arg(arg);
+        }
+
+        let output = command.output().expect("Failed to run command.");
+        let result = String::from_utf8_lossy(&output.stdout);
+        result.trim().to_string()
+    }
+
+    fn raw_vec(&self, args: Vec<&str>) -> Vec<String> {
+        let command = &mut self.command_builder.new_command();
+
+        for arg in args {
+            command.arg(arg);
+        }
+
+        let output = command.output().expect("Failed to run command.");
+        let result = String::from_utf8_lossy(&output.stdout);
+        result.lines().map(|x| x.to_string()).collect()
+    }
+
+    fn get_str_raw(&self, args: Vec<&str>) -> String {
+        let command = &mut self.command_builder.new_command();
+
+        command.arg("display-message").arg("-p");
+
+        for arg in args {
+            command.arg(arg);
+        }
+
+        let output = command.output().expect("Failed to run command.");
+        let result = String::from_utf8_lossy(&output.stdout);
+        result.trim().to_string()
+    }
+
+    fn raw_str_opt(&self, args: Vec<&str>) -> Option<String> {
+        let command = &mut self.command_builder.new_command();
+
+        for arg in args {
+            command.arg(arg);
+        }
+
+        let output = command.output().expect("Failed to run command.");
+        let text = String::from_utf8_lossy(&output.stdout);
+        let result = text.trim().to_string();
+
+        if result.is_empty() {
+            None
+        } else {
+            Some(result)
+        }
     }
 }
 

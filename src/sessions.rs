@@ -45,6 +45,10 @@ impl<'t, T: Tmux> SessionStorageImpl<'t, T> {
                 self.tmux
                     .new_session(session_name, tmux_window, &first_pane.startup_command);
 
+                for option in &tmux_window.options {
+                    self.tmux.set_window_option(tmux_window.name.as_str(), option);
+                }
+
                 if first_pane.startup_command.is_none()
                     && let Some(shell_command) = &first_pane.shell_command
                 {
@@ -59,7 +63,7 @@ impl<'t, T: Tmux> SessionStorageImpl<'t, T> {
                             &tmux_window.name,
                             &SplitWindowOptions {
                                 horizontally: true,
-                                path: pane.path.clone(),
+                                path: Some(pane.path.clone()),
                                 startup_command: pane.startup_command.clone(),
                                 at_index: None,
                                 before: false,
@@ -98,11 +102,15 @@ impl<'t, T: Tmux> SessionStorageImpl<'t, T> {
                 self.tmux.new_window(
                     session_name,
                     tmux_window.name.as_str(),
-                    &pane.path,
+                    &Some(pane.path.clone()),
                     &pane.environment,
                     &pane.startup_command,
                     false,
                 );
+
+                for option in &tmux_window.options {
+                    self.tmux.set_window_option(tmux_window.name.as_str(), option);
+                }
 
                 if pane.startup_command.is_none()
                     && let Some(shell_command) = &pane.shell_command
@@ -119,7 +127,7 @@ impl<'t, T: Tmux> SessionStorageImpl<'t, T> {
                             &tmux_window.name,
                             &SplitWindowOptions {
                                 horizontally: true,
-                                path: pane.path.clone(),
+                                path: Some(pane.path.clone()),
                                 startup_command: command.clone(),
                                 at_index: None,
                                 before: false,

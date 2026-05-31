@@ -105,15 +105,15 @@ pub(crate) enum SplitType {
     Left,
 }
 
-#[derive(Subcommand, Debug)]
-pub(crate) enum WindowAction {
-    SmartSplit {
-        #[arg(value_enum)]
-        split_type: SplitType,
-        session_name: String,
-    },
-}
-
+// #[derive(Subcommand, Debug)]
+// pub(crate) enum WindowAction {
+//     SmartSplit {
+//         #[arg(value_enum)]
+//         split_type: SplitType,
+//         session_name: String,
+//     },
+// }
+//
 #[derive(Subcommand, Debug)]
 pub(crate) enum Action {
     Config {
@@ -136,12 +136,15 @@ pub(crate) enum Action {
         #[command(subcommand)]
         action: BookmarkAction,
     },
-    Window {
-        #[command(subcommand)]
-        action: WindowAction,
-    },
+    // Window {
+    //     #[command(subcommand)]
+    //     action: WindowAction,
+    // },
     Status {
         #[arg(long)]
         theme: Option<String>,
+    },
+    Workflow {
+        key: String
     }
 }

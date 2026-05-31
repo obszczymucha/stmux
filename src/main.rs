@@ -12,6 +12,7 @@ mod status_config;
 mod tmux;
 mod utils;
 mod window;
+mod workflow;
 use std::collections::HashSet;
 
 use args::{
@@ -30,9 +31,9 @@ use sessions::{SessionStorage, SessionStorageImpl};
 use status::{Status, StatusImpl};
 use status_config::StatusConfigFileImpl;
 use tmux::{Tmux, TmuxImpl};
-use window::WindowImpl;
+use workflow::WorkflowImpl;
 
-use crate::{args::WindowAction, status_config::StatusConfigFile, window::Window};
+use crate::{status_config::StatusConfigFile};
 
 fn run(config: &dyn Config, action: Action) {
     match action {
@@ -344,22 +345,27 @@ fn run(config: &dyn Config, action: Action) {
             let status = StatusImpl::new(tmux, &session_file, &status_config);
             status.set();
         }
-        Action::Window { action } => match action {
-            WindowAction::SmartSplit {
-                split_type,
-                session_name,
-            } => {
-                let tmux = TmuxImpl::new(&CommandBuilderImpl);
-                let sessions = SessionStorageImpl::new(config.sessions_filename().as_str(), &tmux);
-
-                if let Some(session) = sessions.load().get(&session_name) {
-                    let window = WindowImpl::new(&tmux);
-                    window.smart_split(&session_name, session, &split_type);
-                } else {
-                    eprintln!("Session '{}' not found.", session_name);
-                }
-            }
-        },
+        // Action::Window { action } => match action {
+        //     WindowAction::SmartSplit {
+        //         split_type,
+        //         session_name,
+        //     } => {
+        //         let tmux = TmuxImpl::new(&CommandBuilderImpl);
+        //         let sessions = SessionStorageImpl::new(config.sessions_filename().as_str(), &tmux);
+        //
+        //         if let Some(session) = sessions.load().get(&session_name) {
+        //             let window = WindowImpl::new(&tmux);
+        //             window.smart_split(&session_name, session, &split_type);
+        //         } else {
+        //             eprintln!("Session '{}' not found.", session_name);
+        //         }
+        //     }
+        // },
+        Action::Workflow { key } => {
+            let tmux = TmuxImpl::new(&CommandBuilderImpl);
+            let workflow = WorkflowImpl::new(&tmux);
+            workflow.on_action(key.as_str());
+        }
     }
 }
 
