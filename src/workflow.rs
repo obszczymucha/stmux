@@ -258,6 +258,58 @@ impl<'t, T: Tmux> WorkflowImpl<'t, T> {
         }
     }
 
+    fn swap_rightmost_pane(&self, forward: bool) {
+        let count = self.tmux.count_panes();
+        if count == 1 {
+            return;
+        }
+
+        let current = self
+            .tmux
+            .get_pane_option("{right}", "@window-name")
+            .unwrap_or_default();
+
+        eprintln!("window-name: {}", current);
+        let candidates = self.find_candidates("right");
+        candidates
+            .iter()
+            .for_each(|c| eprintln!("Candidate: {}", c.name));
+
+        let candidate = if forward {
+            candidates.first()
+        } else {
+            candidates.last()
+        };
+
+        let target = if forward {
+            candidates.last()
+        } else {
+            candidates.first()
+        };
+
+        if let Some(c) = candidate {
+            self.tmux
+                .raw(vec!["swap-pane", "-s", "{right}", "-t", format!("{}.1", c.index).as_str()]);
+            self.tmux.raw(vec![
+                "rename-window",
+                "-t",
+                c.index.as_str(),
+                current.as_str(),
+            ]);
+
+            if let Some(t) = target {
+                self.tmux.raw(vec![
+                    "move-window",
+                    format!("-s:{}", c.index).as_str(),
+                    format!("-t:{}", t.index).as_str(),
+                    if forward { "-ad" } else { "-bd" },
+                    ";",
+                    "move-window",
+                    "-r",
+                ]);
+            }
+        }
+    }
     // Aka: select previous window binding
     fn previous(&self) {
         self.swap_active_pane(false);
@@ -432,6 +484,9 @@ impl<'t, T: Tmux> WorkflowImpl<'t, T> {
 
     fn toggle(&self) {
         let pane_count = self.tmux.count_panes();
+        let side = self
+            .tmux
+            .raw_str_opt(vec!["show-option", "-t", "{right}", "-p", "@side"]);
         // let next_window_name = self
         //     .tmux
         //     .raw_str_opt(vec!["display-message", "-p", "-t:+", "#W"]);
@@ -440,7 +495,12 @@ impl<'t, T: Tmux> WorkflowImpl<'t, T> {
         {
             self.tmux
                 .join_pane_to_current_window(name.as_str(), 1, None, false);
+            self.next();
         } else if pane_count == 1 {
+            self.new_right();
+        } else if side.is_none() && self.find_next_right_window_name().is_some() {
+            self.swap_rightmost_pane(true);
+        } else if side.is_none() && self.find_next_right_window_name().is_none() {
             self.new_right();
         } else {
             self.break_pane();
