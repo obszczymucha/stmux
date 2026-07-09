@@ -4,15 +4,10 @@ pub(crate) struct WorkflowImpl<'t, T: Tmux> {
     tmux: &'t T,
 }
 
-#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Clone)]
 struct Candidate {
     index: String,
     name: String,
-}
-
-struct NameAndSide {
-    name: String,
-    side: String,
 }
 
 impl<'t, T: Tmux> WorkflowImpl<'t, T> {
@@ -20,49 +15,16 @@ impl<'t, T: Tmux> WorkflowImpl<'t, T> {
         Self { tmux }
     }
 
-    fn list_numeric_windows(&self) -> Vec<usize> {
-        self.tmux
-            .list_windows_for_current_session("#W")
-            .into_iter()
-            .filter_map(|window| window.parse::<usize>().ok())
-            .collect()
-    }
-
-    fn parse_names(&self, names_str: &str) -> Vec<String> {
-        names_str.split(' ').map(|s| s.trim().to_string()).collect()
-    }
-
-    fn get_windows_with_sides(&self) -> Vec<NameAndSide> {
-        self.tmux
-            .raw_vec(vec!["list-windows", "-F", "#W:#{@side}"])
-            .into_iter()
-            .filter_map(|entry| {
-                let mut parts = entry.splitn(2, ':');
-                let name = parts.next().unwrap_or("");
-                let side = parts.next().unwrap_or("");
-                if !name.is_empty() {
-                    Some(NameAndSide {
-                        name: name.to_string(),
-                        side: side.to_string(),
-                    })
-                } else {
-                    None
-                }
-            })
-            .collect()
-    }
-
     fn find_next_right_window_name(&self) -> Option<String> {
         let current_window_name = self.tmux.get_str("#W");
-        let windows = self.get_windows_with_sides();
-        let mut current = false;
+        let mut seen_current = false;
 
-        for entry in windows {
-            // eprintln!("Window: {}, Side: {}", entry.name, entry.side);
-            if entry.name == current_window_name {
-                current = true;
-            } else if current && entry.side == "right" {
-                return Some(entry.name);
+        for entry in self.tmux.raw_vec(vec!["list-windows", "-F", "#W:#{@side}"]) {
+            let (name, side) = entry.split_once(':').unwrap_or((entry.as_str(), ""));
+            if name == current_window_name {
+                seen_current = true;
+            } else if seen_current && side == "right" {
+                return Some(name.to_string());
             }
         }
 
@@ -71,50 +33,31 @@ impl<'t, T: Tmux> WorkflowImpl<'t, T> {
 
     fn find_next_right_name(&self) -> Option<String> {
         let mut windows = self.tmux.raw_vec(vec!["list-windows", "-F", "#W"]);
-        let right_pane_name =
+        if let Some(right_name) =
             self.tmux
-                .raw_str_opt(vec!["display-message", "-p", "-t:.2", "#{@window-name}"]);
-        if let Some(right_name) = right_pane_name {
+                .raw_str_opt(vec!["display-message", "-p", "-t:.2", "#{@window-name}"])
+        {
             windows.push(right_name);
         }
 
-        let names_str = self.tmux.get_str("#{@window-names-right}");
-        let names = self.parse_names(names_str.as_str());
-
-        if names.is_empty() {
-            return None;
-        }
-
-        for name in &names {
-            if !windows.contains(name) {
-                return Some(name.clone());
-            }
-        }
-
-        None
+        let names = self.tmux.get_str("#{@window-names-right}");
+        names
+            .split(' ')
+            .map(str::trim)
+            .find(|name| !name.is_empty() && !windows.iter().any(|w| w == name))
+            .map(String::from)
     }
 
     fn find_next_numeric_name(&self) -> String {
-        let windows = &mut self.list_numeric_windows();
-        windows.sort();
-        let max = windows.last();
+        let max = self
+            .tmux
+            .list_windows_for_current_session("#W")
+            .into_iter()
+            .filter_map(|window| window.parse::<usize>().ok())
+            .max()
+            .unwrap_or(0);
 
-        let result = if let Some(value) = max { value + 1 } else { 1 };
-        format!("{}", result)
-    }
-
-    fn find_next_alpha_name(&self) -> String {
-        let windows = self.tmux.raw_vec(vec!["list-windows", "-F", "#W"]);
-
-        for c in b'a'..=b'z' {
-            let name = (c as char).to_string();
-
-            if !windows.contains(&name) {
-                return name;
-            }
-        }
-
-        String::from("a")
+        (max + 1).to_string()
     }
 
     fn find_candidates(&self, side: &str) -> Vec<Candidate> {
@@ -127,8 +70,7 @@ impl<'t, T: Tmux> WorkflowImpl<'t, T> {
                 let mut parts = entry.splitn(4, ':');
                 let index = parts.next().unwrap_or("");
                 let name = parts.next().unwrap_or("");
-                let pane_count = parts.next().unwrap_or("0");
-                let count = pane_count.parse::<usize>().unwrap_or(0);
+                let count = parts.next().unwrap_or("0").parse::<usize>().unwrap_or(0);
                 let s = parts.next().unwrap_or("unknown");
                 if index != current_index && count == 1 && s == side {
                     Some(Candidate {
@@ -139,14 +81,6 @@ impl<'t, T: Tmux> WorkflowImpl<'t, T> {
                     None
                 }
             })
-            .collect()
-    }
-
-    fn list_alpha_windows(&self) -> Vec<String> {
-        self.tmux
-            .list_windows_for_current_session("#W")
-            .into_iter()
-            .filter(|window| !window.chars().all(char::is_numeric))
             .collect()
     }
 
@@ -169,98 +103,45 @@ impl<'t, T: Tmux> WorkflowImpl<'t, T> {
     }
 
     fn swap_active_pane(&self, forward: bool) {
-        let count = self.tmux.count_panes();
-        if count == 1 {
+        if self.tmux.count_panes() == 1 {
             return;
         }
 
-        let pane_left = self.tmux.get_str("#{pane_left}");
-        let is_leftmost = pane_left == "0";
-
-        if is_leftmost {
-            eprintln!("chuj");
-            let current_name = self
-                .tmux
-                .get_pane_option("1", "@window-name")
-                .unwrap_or_default();
-            let mut candidates = self.find_candidates("left");
-            candidates.sort_by_key(|s| s.index.parse::<usize>().unwrap_or(0));
-            candidates
-                .iter()
-                .for_each(|c| eprintln!("Candidate: {}", c.name));
-            if let Some(target) = Self::cycle_candidate(&current_name, &candidates, forward) {
-                eprintln!("Swapping with target: {}", target.name);
-                self.tmux.raw(vec![
-                    "swap-pane",
-                    "-s",
-                    ":.1",
-                    "-t",
-                    &format!("{}.1", target.index),
-                ]);
-                self.tmux
-                    .set_pane_option_for_current_window(1, "@window-name", &target.name);
-                self.tmux.raw(vec!["rename-window", &target.name]);
-                self.tmux.raw(vec![
-                    "rename-window",
-                    "-t",
-                    &format!("{}.1", target.index),
-                    &current_name,
-                ]);
-            }
-
+        if self.tmux.get_str("#{pane_left}") != "0" {
+            // Not the leftmost pane, so it's the right one in a two-pane layout.
+            self.swap_rightmost_pane(forward);
             return;
         }
 
-        let current = self
+        let current_name = self
             .tmux
-            .get_pane_option("2", "@window-name")
+            .get_pane_option("1", "@window-name")
             .unwrap_or_default();
+        let mut candidates = self.find_candidates("left");
+        candidates.sort_by_key(|c| c.index.parse::<usize>().unwrap_or(0));
 
-        eprintln!("window-name: {}", current);
-        let candidates = self.find_candidates("right");
-        candidates
-            .iter()
-            .for_each(|c| eprintln!("Candidate: {}", c.name));
-
-        let candidate = if forward {
-            candidates.first()
-        } else {
-            candidates.last()
-        };
-
-        let target = if forward {
-            candidates.last()
-        } else {
-            candidates.first()
-        };
-
-        if let Some(c) = candidate {
+        if let Some(target) = Self::cycle_candidate(&current_name, &candidates, forward) {
+            self.tmux.raw(vec![
+                "swap-pane",
+                "-s",
+                ":.1",
+                "-t",
+                &format!("{}.1", target.index),
+            ]);
             self.tmux
-                .raw(vec!["swap-pane", "-t", format!("{}.1", c.index).as_str()]);
+                .set_pane_option_for_current_window(1, "@window-name", &target.name);
+            self.tmux.raw(vec!["rename-window", &target.name]);
             self.tmux.raw(vec![
                 "rename-window",
                 "-t",
-                c.index.as_str(),
-                current.as_str(),
+                &format!("{}.1", target.index),
+                &current_name,
             ]);
-
-            if let Some(t) = target {
-                self.tmux.raw(vec![
-                    "move-window",
-                    format!("-s:{}", c.index).as_str(),
-                    format!("-t:{}", t.index).as_str(),
-                    if forward { "-ad" } else { "-bd" },
-                    ";",
-                    "move-window",
-                    "-r",
-                ]);
-            }
         }
     }
 
     fn swap_rightmost_pane(&self, forward: bool) {
-        let count = self.tmux.count_panes();
-        if count == 1 {
+        if self.tmux.count_panes() == 1 {
             return;
         }
 
@@ -269,27 +150,21 @@ impl<'t, T: Tmux> WorkflowImpl<'t, T> {
             .get_pane_option("{right}", "@window-name")
             .unwrap_or_default();
 
-        eprintln!("window-name: {}", current);
         let candidates = self.find_candidates("right");
-        candidates
-            .iter()
-            .for_each(|c| eprintln!("Candidate: {}", c.name));
-
-        let candidate = if forward {
-            candidates.first()
+        let (candidate, target) = if forward {
+            (candidates.first(), candidates.last())
         } else {
-            candidates.last()
-        };
-
-        let target = if forward {
-            candidates.last()
-        } else {
-            candidates.first()
+            (candidates.last(), candidates.first())
         };
 
         if let Some(c) = candidate {
-            self.tmux
-                .raw(vec!["swap-pane", "-s", "{right}", "-t", format!("{}.1", c.index).as_str()]);
+            self.tmux.raw(vec![
+                "swap-pane",
+                "-s",
+                "{right}",
+                "-t",
+                format!("{}.1", c.index).as_str(),
+            ]);
             self.tmux.raw(vec![
                 "rename-window",
                 "-t",
@@ -309,45 +184,6 @@ impl<'t, T: Tmux> WorkflowImpl<'t, T> {
                 ]);
             }
         }
-    }
-    // Aka: select previous window binding
-    fn previous(&self) {
-        self.swap_active_pane(false);
-    }
-
-    // Aka: select next window binding
-    fn next(&self) {
-        self.swap_active_pane(true);
-    }
-
-    fn swap_pane(&self, swap_window_name: &str) {
-        let current_window_index = self.tmux.get_str("#{window_index}");
-        let this_index = format!("{}.2", current_window_index);
-        let this_window_name = self
-            .tmux
-            .get_pane_option(this_index.as_str(), "@window-name")
-            .unwrap_or("chuj".to_string());
-        let that_index = format!("{}.1", swap_window_name);
-        let that_window_name = self
-            .tmux
-            .get_pane_option(that_index.as_str(), "@window-name")
-            .unwrap_or("chuj".to_string());
-        self.tmux
-            .swap_panes(&current_window_index, 2, swap_window_name, 1);
-        self.tmux.set_pane_option(
-            swap_window_name,
-            1,
-            "@window-name",
-            this_window_name.as_str(),
-        );
-        self.tmux.set_pane_option(
-            current_window_index.as_str(),
-            2,
-            "@window-name",
-            that_window_name.as_str(),
-        );
-        self.tmux
-            .rename_window_in_current_session(swap_window_name, this_window_name.as_str());
     }
 
     fn new_left(&self) {
@@ -388,7 +224,6 @@ impl<'t, T: Tmux> WorkflowImpl<'t, T> {
 
     fn new_pane(&self) {
         let path = self.tmux.get_str("#{pane_current_path}");
-        // self.tmux.raw(vec!["display-message", format!("Current path: {}", path).as_str()]);
         let options = SplitWindowOptions {
             horizontally: true,
             path: Some(path),
@@ -397,9 +232,7 @@ impl<'t, T: Tmux> WorkflowImpl<'t, T> {
             before: false,
         };
 
-        let name = self.find_next_right_name();
-
-        if let Some(name) = name {
+        if let Some(name) = self.find_next_right_name() {
             self.tmux.split_current_window(&options);
 
             self.tmux
@@ -420,20 +253,15 @@ impl<'t, T: Tmux> WorkflowImpl<'t, T> {
     }
 
     fn new_right(&self) {
-        let count = self.tmux.count_panes();
-
-        if count == 1 {
+        if self.tmux.count_panes() == 1 {
             self.new_pane();
             return;
         }
 
         let old_name = self.tmux.get_pane_option("2", "@window-name");
-        let name_opt = self.find_next_right_name();
-        if name_opt.is_none() {
+        let Some(name) = self.find_next_right_name() else {
             return;
-        }
-
-        let name = name_opt.unwrap();
+        };
 
         let path = self.tmux.get_str("#{pane_current_path}");
         self.tmux.raw(vec![
@@ -472,35 +300,23 @@ impl<'t, T: Tmux> WorkflowImpl<'t, T> {
         eprintln!("Executing workflow for key: [");
     }
 
-    fn test(&self) {
-        let name = self.find_next_right_name();
-
-        if let Some(name) = name {
-            eprintln!("Next right name: {}", name);
-        } else {
-            eprintln!("No next right name found");
-        }
-    }
-
     fn toggle(&self) {
         let pane_count = self.tmux.count_panes();
         let side = self
             .tmux
             .raw_str_opt(vec!["show-option", "-t", "{right}", "-p", "@side"]);
-        // let next_window_name = self
-        //     .tmux
-        //     .raw_str_opt(vec!["display-message", "-p", "-t:+", "#W"]);
+
         if pane_count == 1
             && let Some(name) = self.find_next_right_window_name()
         {
             self.tmux
                 .join_pane_to_current_window(name.as_str(), 1, None, false);
-            self.next();
+            self.swap_active_pane(true);
         } else if pane_count == 1 {
             self.new_right();
         } else if side.is_none() && self.find_next_right_window_name().is_some() {
             self.swap_rightmost_pane(true);
-        } else if side.is_none() && self.find_next_right_window_name().is_none() {
+        } else if side.is_none() {
             self.new_right();
         } else {
             self.break_pane();
@@ -509,8 +325,9 @@ impl<'t, T: Tmux> WorkflowImpl<'t, T> {
 
     pub fn on_action(&self, key: &str) {
         match key {
-            "1" => self.previous(),
-            "2" => self.next(),
+            // 1 and 2 are the select previous/next window bindings.
+            "1" => self.swap_active_pane(false),
+            "2" => self.swap_active_pane(true),
             "3" => self.new_right(),
             "q" => self.new_left(),
             "w" => self.toggle(),

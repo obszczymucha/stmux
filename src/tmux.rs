@@ -18,6 +18,8 @@ pub(crate) struct SplitWindowOptions {
     pub(crate) before: bool,
 }
 
+// automock can't expand elided lifetimes in Vec<&str> args, so they stay explicit.
+#[allow(clippy::needless_lifetimes)]
 #[automock]
 pub(crate) trait Tmux {
     fn list_sessions(&self, format: &str) -> Result<Vec<String>, Vec<String>>;
@@ -75,7 +77,6 @@ pub(crate) trait Tmux {
     fn count_panes(&self) -> usize;
     fn set_pane_option_for_current_window(&self, pane_index: usize, name: &str, value: &str);
     fn set_pane_option(&self, window_name: &str, pane_index: usize, name: &str, value: &str);
-    fn set_current_window_pane_option(&self, pane_index: usize, name: &str, value: &str);
     fn set_session_option(&self, session_name: &str, option: &TmuxOption);
     fn set_window_option(&self, window_name: &str, option: &TmuxOption);
 
@@ -96,15 +97,10 @@ pub(crate) trait Tmux {
     );
     fn select_pane(&self, index: usize);
     fn get_cursor_position(&self) -> Option<Position>;
-    fn break_pane(&self, pane_index: usize, window_name: Option<String>);
-    fn window_exists(&self, window_name: &str) -> bool;
     fn get_str(&self, message: &str) -> String;
-    fn get_str_opt(&self, message: &str) -> Option<String>;
     fn raw<'a>(&self, args: Vec<&'a str>);
-    fn raw_str<'a>(&self, args: Vec<&'a str>) -> String;
     fn raw_str_opt<'a>(&self, args: Vec<&'a str>) -> Option<String>;
     fn raw_vec<'a>(&self, args: Vec<&'a str>) -> Vec<String>;
-    fn get_str_raw<'a>(&self, args: Vec<&'a str>) -> String;
 }
 
 pub(crate) struct TmuxImpl<'cb, CB: CommandBuilder> {
@@ -696,14 +692,6 @@ impl<'cb, CB: CommandBuilder> Tmux for TmuxImpl<'cb, CB> {
         self.set_pane_option(name, value, decorator);
     }
 
-    fn set_current_window_pane_option(&self, pane_index: usize, name: &str, value: &str) {
-        let decorator = |command: &mut Command| {
-            command.arg("-t").arg(format!(".{}", pane_index));
-        };
-
-        self.set_pane_option(name, value, decorator);
-    }
-
     fn set_session_option(&self, session_name: &str, option: &TmuxOption) {
         let command = &mut self.command_builder.new_command();
         command
@@ -750,37 +738,6 @@ impl<'cb, CB: CommandBuilder> Tmux for TmuxImpl<'cb, CB> {
             })
     }
 
-    fn break_pane(&self, pane_index: usize, window_name: Option<String>) {
-        let command = &mut self.command_builder.new_command();
-
-        command
-            .arg("break-pane")
-            .arg("-s")
-            .arg(format!("{}", pane_index))
-            .arg("-d")
-            .arg("-a");
-
-        if let Some(name) = window_name {
-            command.arg("-n").arg(name);
-        }
-
-        command.status().expect("Failed to break pane.");
-    }
-
-    fn window_exists(&self, window_name: &str) -> bool {
-        let output = &self
-            .command_builder
-            .new_command()
-            .arg("list-windows")
-            .arg("-F")
-            .arg("#{window_name}")
-            .output()
-            .expect("Failed to list windows.");
-
-        let result = String::from_utf8_lossy(&output.stdout);
-        result.lines().any(|line| line == window_name)
-    }
-
     fn get_str(&self, message: &str) -> String {
         let output = &self
             .command_builder
@@ -795,26 +752,6 @@ impl<'cb, CB: CommandBuilder> Tmux for TmuxImpl<'cb, CB> {
         result.trim().to_string()
     }
 
-    fn get_str_opt(&self, message: &str) -> Option<String> {
-        let output = &self
-            .command_builder
-            .new_command()
-            .arg("display-message")
-            .arg("-p")
-            .arg(message)
-            .output()
-            .expect("Failed to display message.");
-
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let result = stdout.trim().to_string();
-
-        if result.is_empty() {
-            None
-        } else {
-            Some(result)
-        }
-    }
-
     fn raw(&self, args: Vec<&str>) {
         let command = &mut self.command_builder.new_command();
 
@@ -823,18 +760,6 @@ impl<'cb, CB: CommandBuilder> Tmux for TmuxImpl<'cb, CB> {
         }
 
         command.status().expect("Failed to run command.");
-    }
-
-    fn raw_str(&self, args: Vec<&str>) -> String {
-        let command = &mut self.command_builder.new_command();
-
-        for arg in args {
-            command.arg(arg);
-        }
-
-        let output = command.output().expect("Failed to run command.");
-        let result = String::from_utf8_lossy(&output.stdout);
-        result.trim().to_string()
     }
 
     fn raw_vec(&self, args: Vec<&str>) -> Vec<String> {
@@ -847,20 +772,6 @@ impl<'cb, CB: CommandBuilder> Tmux for TmuxImpl<'cb, CB> {
         let output = command.output().expect("Failed to run command.");
         let result = String::from_utf8_lossy(&output.stdout);
         result.lines().map(|x| x.to_string()).collect()
-    }
-
-    fn get_str_raw(&self, args: Vec<&str>) -> String {
-        let command = &mut self.command_builder.new_command();
-
-        command.arg("display-message").arg("-p");
-
-        for arg in args {
-            command.arg(arg);
-        }
-
-        let output = command.output().expect("Failed to run command.");
-        let result = String::from_utf8_lossy(&output.stdout);
-        result.trim().to_string()
     }
 
     fn raw_str_opt(&self, args: Vec<&str>) -> Option<String> {
