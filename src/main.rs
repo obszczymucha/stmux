@@ -239,12 +239,12 @@ fn run(config: &dyn Config, action: Action) {
 
                 recent.print()
             }
-            RecentSessionAction::Next => {
+            RecentSessionAction::Next { all } => {
                 let tmux = TmuxImpl::new(&CommandBuilderImpl);
                 let file = SessionNameFileImpl::new(config.recent_sessions_filename().as_str());
                 let recent = RecentImpl::new(&tmux, &file);
 
-                if let Some(name) = recent.next(&tmux.current_session_name()) {
+                if let Some(name) = recent.next(&tmux.current_session_name(), all) {
                     let session = SessionImpl::new(&tmux);
                     session.select(
                         &name,
@@ -252,12 +252,12 @@ fn run(config: &dyn Config, action: Action) {
                     );
                 }
             }
-            RecentSessionAction::Previous => {
+            RecentSessionAction::Previous { all } => {
                 let tmux = TmuxImpl::new(&CommandBuilderImpl);
                 let file = SessionNameFileImpl::new(config.recent_sessions_filename().as_str());
                 let recent = RecentImpl::new(&tmux, &file);
 
-                if let Some(name) = recent.previous(&tmux.current_session_name()) {
+                if let Some(name) = recent.previous(&tmux.current_session_name(), all) {
                     let session = SessionImpl::new(&tmux);
                     session.select(
                         &name,

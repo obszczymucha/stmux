@@ -76,8 +76,16 @@ pub(crate) enum SessionsAction {
 #[derive(Subcommand, Debug)]
 pub(crate) enum RecentSessionAction {
     List,
-    Next,
-    Previous,
+    Next {
+        /// Continue into running sessions not in the recent list.
+        #[arg(long)]
+        all: bool,
+    },
+    Previous {
+        /// Continue into running sessions not in the recent list.
+        #[arg(long)]
+        all: bool,
+    },
     Edit,
     Add { session_name: Option<String> },
 }

@@ -11,8 +11,8 @@ use crate::{
 
 pub(crate) trait Recent {
     fn add(&self, session: Option<&TmuxSession>, session_name: &str);
-    fn next(&self, session_name: &str) -> Option<String>;
-    fn previous(&self, session_name: &str) -> Option<String>;
+    fn next(&self, session_name: &str, all: bool) -> Option<String>;
+    fn previous(&self, session_name: &str, all: bool) -> Option<String>;
     fn print(&self);
     fn edit(&self, config: &dyn Config);
 }
@@ -28,6 +28,25 @@ impl<'t, 's, T: Tmux, S: SessionNameFile> RecentImpl<'t, 's, T, S> {
             tmux,
             recent_session_file,
         }
+    }
+
+    /// Running recent sessions, followed by (if `all`) the remaining running sessions sorted by name.
+    fn session_names(&self, all: bool) -> Vec<String> {
+        let mut current_session_names = SessionImpl::new(self.tmux).list_names();
+        let mut session_names = self
+            .recent_session_file
+            .read()
+            .into_iter()
+            .filter(|s| current_session_names.contains(s))
+            .collect::<Vec<String>>();
+
+        if all {
+            current_session_names.retain(|s| !session_names.contains(s));
+            current_session_names.sort_by_key(|s| s.to_lowercase());
+            session_names.extend(current_session_names);
+        }
+
+        session_names
     }
 }
 
@@ -49,14 +68,8 @@ impl<'t, 's, T: Tmux, S: SessionNameFile> Recent for RecentImpl<'t, 's, T, S> {
         self.recent_session_file.write(&names);
     }
 
-    fn next(&self, session_name: &str) -> Option<String> {
-        let recent_session_names = self.recent_session_file.read();
-        let session = SessionImpl::new(self.tmux);
-        let current_session_names = session.list_names();
-        let session_names = recent_session_names
-            .into_iter()
-            .filter(|s| current_session_names.contains(s))
-            .collect::<Vec<String>>();
+    fn next(&self, session_name: &str, all: bool) -> Option<String> {
+        let session_names = self.session_names(all);
 
         if session_names.is_empty() {
             return None;
@@ -73,14 +86,8 @@ impl<'t, 's, T: Tmux, S: SessionNameFile> Recent for RecentImpl<'t, 's, T, S> {
             .cloned()
     }
 
-    fn previous(&self, session_name: &str) -> Option<String> {
-        let recent_session_names = self.recent_session_file.read();
-        let session = SessionImpl::new(self.tmux);
-        let current_session_names = session.list_names();
-        let session_names = recent_session_names
-            .into_iter()
-            .filter(|s| current_session_names.contains(s))
-            .collect::<Vec<String>>();
+    fn previous(&self, session_name: &str, all: bool) -> Option<String> {
+        let session_names = self.session_names(all);
 
         if session_names.is_empty() {
             return None;
@@ -160,7 +167,7 @@ mod next_tests {
         let recent = RecentImpl::new(&tmux, &recent_session_file);
 
         // When
-        let result = recent.next("a");
+        let result = recent.next("a", false);
 
         // Then
         assert_eq!(result.as_deref(), Some("b"));
@@ -181,7 +188,7 @@ mod next_tests {
         let recent = RecentImpl::new(&tmux, &recent_session_file);
 
         // When
-        let result = recent.next("a");
+        let result = recent.next("a", false);
 
         // Then
         assert_eq!(result.as_deref(), Some("c"));
@@ -202,10 +209,31 @@ mod next_tests {
         let recent = RecentImpl::new(&tmux, &recent_session_file);
 
         // When
-        let result = recent.next("c");
+        let result = recent.next("c", false);
 
         // Then
         assert_eq!(result.as_deref(), None);
+    }
+
+    #[test]
+    fn should_continue_into_unknown_sessions_with_all() {
+        // Given
+        let mut tmux = MockTmux::new();
+        tmux.expect_list_sessions()
+            .returning(|_| Ok(vec!["z".into(), "a".into(), "b".into(), "C".into()].clone()));
+
+        let mut recent_session_file = MockSessionNameFile::new();
+        recent_session_file
+            .expect_read()
+            .returning(|| vec!["b".into(), "z".into()]);
+
+        let recent = RecentImpl::new(&tmux, &recent_session_file);
+
+        // Then
+        assert_eq!(recent.next("z", false).as_deref(), None);
+        assert_eq!(recent.next("z", true).as_deref(), Some("a"));
+        assert_eq!(recent.next("a", true).as_deref(), Some("C"));
+        assert_eq!(recent.previous("a", true).as_deref(), Some("z"));
     }
 }
 
@@ -231,7 +259,7 @@ mod previous_tests {
         let recent = RecentImpl::new(&tmux, &recent_session_file);
 
         // When
-        let result = recent.previous("c");
+        let result = recent.previous("c", false);
 
         // Then
         assert_eq!(result.as_deref(), Some("b"));
@@ -252,7 +280,7 @@ mod previous_tests {
         let recent = RecentImpl::new(&tmux, &recent_session_file);
 
         // When
-        let result = recent.previous("c");
+        let result = recent.previous("c", false);
 
         // Then
         assert_eq!(result.as_deref(), Some("a"));
@@ -273,7 +301,7 @@ mod previous_tests {
         let recent = RecentImpl::new(&tmux, &recent_session_file);
 
         // When
-        let result = recent.previous("a");
+        let result = recent.previous("a", false);
 
         // Then
         assert_eq!(result.as_deref(), None);
