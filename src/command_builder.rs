@@ -41,7 +41,9 @@ impl TestCommandBuilderImpl {
 impl CommandBuilder for TestCommandBuilderImpl {
     fn new_command(&self) -> Command {
         let mut cmd = Command::new("tmux");
-        cmd.arg("-L").arg(&self.socket);
+        // Isolated from the user's config and from any tmux the tests run inside.
+        cmd.arg("-L").arg(&self.socket).arg("-f").arg("/dev/null");
+        cmd.env_remove("TMUX").env_remove("TMUX_PANE");
         cmd
     }
 }
